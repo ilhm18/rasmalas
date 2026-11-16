@@ -10,6 +10,7 @@ import { SocialRealtimeSection } from './components/SocialRealtimeSection';
 import { StickyMiniPlayer } from './components/StickyMiniPlayer';
 import { TourSection } from './components/TourSection';
 import { useBandRealtime } from './hooks/useBandRealtime';
+import { resolveAssetUrl } from './shared/assetUrl';
 import type { SiteSection, Track } from './shared/types';
 
 const TOKEN_STORAGE_KEY = 'senja_admin_token';
@@ -73,9 +74,9 @@ export default function App() {
 
   const getTrackSource = useCallback((track: Track): string => {
     if (track.audioUrl && track.audioUrl.trim()) {
-      return track.audioUrl.trim();
+      return resolveAssetUrl(track.audioUrl.trim()) || track.audioUrl.trim();
     }
-    return `/api/audio/${encodeURIComponent(track.id)}.wav`;
+    return resolveAssetUrl(`/api/audio/${encodeURIComponent(track.id)}.wav`) || `/api/audio/${encodeURIComponent(track.id)}.wav`;
   }, []);
 
   const playTrack = useCallback(
@@ -409,7 +410,7 @@ export default function App() {
                       {bandState.profile.logoUrl ? (
                         <span className="inline-block h-8 w-28 overflow-hidden">
                           <img
-                            src={bandState.profile.logoUrl}
+                            src={resolveAssetUrl(bandState.profile.logoUrl)}
                             alt={bandState.profile.name}
                             className="h-full w-full object-cover object-center scale-[1.15]"
                           />

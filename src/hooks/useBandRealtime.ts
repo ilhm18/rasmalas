@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DEFAULT_STATE } from '../shared/defaultState';
 import type {
   BandProfile,
   BandState,
@@ -23,6 +24,7 @@ export function useBandRealtime() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [backendAvailable, setBackendAvailable] = useState(false);
   const [onlineCount, setOnlineCount] = useState(1);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -31,13 +33,20 @@ export function useBandRealtime() {
   const fetchInitialState = useCallback(async () => {
     try {
       const res = await fetch('/api/state');
-      if (!res.ok) throw new Error('Gagal memuat data band.');
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.includes('application/json')) {
+        throw new Error('STATIC_FALLBACK');
+      }
       const data = (await res.json()) as { state: BandState; onlineCount: number };
       setBandState(data.state);
       setOnlineCount(Math.max(1, data.onlineCount || 1));
+      setBackendAvailable(true);
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Terjadi kesalahan koneksi.');
+    } catch {
+      // Static hosting fallback (e.g. GitHub Pages without Node.js backend)
+      setBandState((prev) => prev ?? DEFAULT_STATE);
+      setBackendAvailable(false);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -48,6 +57,7 @@ export function useBandRealtime() {
   }, [fetchInitialState]);
 
   useEffect(() => {
+    if (!backendAvailable) return;
     let unmounted = false;
 
     function connect() {
@@ -132,7 +142,7 @@ export function useBandRealtime() {
       }
       wsRef.current?.close();
     };
-  }, []);
+  }, [backendAvailable]);
 
   return {
     bandState,
