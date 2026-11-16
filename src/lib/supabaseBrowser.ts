@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_STATE } from '../shared/defaultState';
+import { normalizeTourStatus } from '../shared/tourUtils';
 import type {
   BandMember,
   BandProfile,
@@ -161,7 +162,7 @@ export async function fetchBandStateFromSupabase(): Promise<BandState> {
       venue: t.venue,
       stageTime: t.stage_time,
       priceLabel: t.price_label,
-      status: t.status,
+      status: normalizeTourStatus(t.date, t.status),
       ticketUrl: t.ticket_url,
       rsvpCount: t.rsvp_count,
       notes: t.notes ?? undefined,
@@ -463,10 +464,150 @@ export async function sbSendPasswordResetEmail(
   return { email: targetEmail };
 }
 
-// Media Upload directly to Supabase Storage
+const TUS_CHUNK_SIZE = 6 * 1024 * 1024; // 6 MB chunk size required by Supabase TUS
+
+function getSupabaseTusEndpoint(): string {
+  const clean = SUPABASE_URL.replace(/\/+$/, '');
+  try {
+    const parsed = new URL(clean);
+    if (parsed.hostname.endsWith('.supabase.co')) {
+      const storageHost = parsed.hostname.replace('.supabase.co', '.storage.supabase.co');
+      return `${parsed.protocol}//${storageHost}/storage/v1/upload/resumable`;
+    }
+  } catch {
+    // fallback below
+  }
+  return `${clean}/storage/v1/upload/resumable`;
+}
+
+function encodeTusMetadata(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function formatSupabaseUploadSizeError(fileSizeBytes: number, rawMessage: string): string {
+  const sizeMb = (fileSizeBytes / (1024 * 1024)).toFixed(1);
+  if (/maximum allowed size|payload too large|entity too large|413/i.test(rawMessage)) {
+    return `Gagal upload (${sizeMb} MB): Server Supabase Storage menolak ukuran file ini. Pastikan di Supabase SQL Editor sudah dijalankan "UPDATE storage.buckets SET file_size_limit = NULL WHERE id = 'rasmalas-media';" dan naikkan "Global file size limit" di Supabase Dashboard → Storage → Settings (paket Free Supabase membatasi maksimal 50 MB per file di level server Supabase; untuk >50 MB gunakan paket Pro atau kompres WAV ke MP3/M4A).`;
+  }
+  return `Gagal upload ke Supabase Storage: ${rawMessage}`;
+}
+
+async function uploadMediaViaTus(
+  file: File,
+  objectPath: string,
+  contentType: string,
+  accessToken: string,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  const tusEndpoint = getSupabaseTusEndpoint();
+  const metadata = [
+    `bucketName ${encodeTusMetadata(MEDIA_BUCKET)}`,
+    `objectName ${encodeTusMetadata(objectPath)}`,
+    `contentType ${encodeTusMetadata(contentType)}`,
+    `cacheControl ${encodeTusMetadata('3600')}`,
+  ].join(',');
+
+  const createRes = await fetch(tusEndpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY,
+      'x-upsert': 'false',
+      'Tus-Resumable': '1.0.0',
+      'Upload-Length': String(file.size),
+      'Upload-Metadata': metadata,
+    },
+  });
+
+  if (!createRes.ok) {
+    const errBody = await createRes.text();
+    let message = errBody;
+    try {
+      const parsed = JSON.parse(errBody) as { message?: string; error?: string };
+      message = parsed.message || parsed.error || errBody;
+    } catch {
+      // use raw text
+    }
+    throw new Error(formatSupabaseUploadSizeError(file.size, message || `HTTP ${createRes.status}`));
+  }
+
+  const location = createRes.headers.get('location') || createRes.headers.get('Location');
+  if (!location) {
+    throw new Error('Server upload Supabase tidak mengembalikan URL lokasi TUS.');
+  }
+
+  const uploadUrl = new URL(location, tusEndpoint).toString();
+  let offset = 0;
+  onProgress?.(0);
+
+  while (offset < file.size) {
+    const nextEnd = Math.min(offset + TUS_CHUNK_SIZE, file.size);
+    const chunk = file.slice(offset, nextEnd);
+
+    let patchRes: Response | null = null;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        patchRes = await fetch(uploadUrl, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: SUPABASE_ANON_KEY,
+            'Tus-Resumable': '1.0.0',
+            'Upload-Offset': String(offset),
+            'Content-Type': 'application/offset+octet-stream',
+          },
+          body: chunk,
+        });
+
+        if (patchRes.ok) {
+          lastError = null;
+          break;
+        }
+
+        const errText = await patchRes.text();
+        if (
+          patchRes.status === 413 ||
+          /maximum allowed size|payload too large|entity too large/i.test(errText)
+        ) {
+          throw new Error(formatSupabaseUploadSizeError(file.size, errText || 'The object exceeded the maximum allowed size'));
+        }
+        lastError = new Error(errText || `HTTP ${patchRes.status}`);
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Koneksi chunk upload terputus.');
+        if (/Batas|Server Supabase Storage menolak/i.test(lastError.message)) {
+          throw lastError;
+        }
+      }
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      }
+    }
+
+    if (!patchRes || !patchRes.ok || lastError) {
+      throw new Error(
+        formatSupabaseUploadSizeError(file.size, lastError?.message || 'Gagal mengirim potongan file.')
+      );
+    }
+
+    const serverOffsetRaw = patchRes.headers.get('upload-offset') || patchRes.headers.get('Upload-Offset');
+    const serverOffset = serverOffsetRaw !== null ? Number(serverOffsetRaw) : NaN;
+    offset = Number.isFinite(serverOffset) && serverOffset > offset ? serverOffset : nextEnd;
+    onProgress?.(Math.min(100, Math.round((offset / file.size) * 100)));
+  }
+}
+
+// Media Upload directly to Supabase Storage (standard for <=6MB, TUS resumable for larger files)
 export async function sbUploadMedia(
   file: File,
-  folder: string
+  folder: string,
+  onProgress?: (percent: number) => void
 ): Promise<{ url: string; mediaType: 'image' | 'video' | 'audio' }> {
   const client = getBrowserSupabaseClient();
   if (!client) throw new Error('Supabase belum dikonfigurasi.');
@@ -476,21 +617,32 @@ export async function sbUploadMedia(
   const ext = extMatch ? extMatch[0].toLowerCase() : '';
   const uniqueName = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}${ext}`;
   const objectPath = `${safeFolder}/${uniqueName}`;
+  const contentType = file.type || 'application/octet-stream';
 
-  const { error } = await client.storage.from(MEDIA_BUCKET).upload(objectPath, file, {
-    contentType: file.type || 'application/octet-stream',
-    upsert: false,
-  });
-  if (error) {
-    throw new Error(`Gagal upload ke Supabase Storage: ${error.message}`);
+  if (file.size > TUS_CHUNK_SIZE) {
+    const { data: sessionData } = await client.auth.getSession();
+    const accessToken = sessionData.session?.access_token || SUPABASE_ANON_KEY;
+    await uploadMediaViaTus(file, objectPath, contentType, accessToken, onProgress);
+  } else {
+    onProgress?.(10);
+    const { error } = await client.storage.from(MEDIA_BUCKET).upload(objectPath, file, {
+      contentType,
+      upsert: false,
+    });
+    if (error) {
+      throw new Error(formatSupabaseUploadSizeError(file.size, error.message));
+    }
+    onProgress?.(100);
   }
 
   const { data } = client.storage.from(MEDIA_BUCKET).getPublicUrl(objectPath);
-  const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('video/')
-    ? 'video'
-    : file.type.startsWith('audio/')
-      ? 'audio'
-      : 'image';
+  const lowerExt = ext.toLowerCase();
+  const mediaType: 'image' | 'video' | 'audio' =
+    file.type.startsWith('video/') || ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v'].includes(lowerExt)
+      ? 'video'
+      : file.type.startsWith('audio/') || ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'].includes(lowerExt)
+        ? 'audio'
+        : 'image';
 
   return { url: data.publicUrl, mediaType };
 }
@@ -664,7 +816,7 @@ export async function sbUpsertTour(tour: TourDate): Promise<void> {
       venue: tour.venue,
       stage_time: tour.stageTime,
       price_label: tour.priceLabel,
-      status: tour.status,
+      status: normalizeTourStatus(tour.date, tour.status),
       ticket_url: tour.ticketUrl,
       rsvp_count: tour.rsvpCount,
       notes: tour.notes ?? null,

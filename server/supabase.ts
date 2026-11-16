@@ -190,6 +190,94 @@ export async function updateSupabaseAdminUsernameServer(
 
 export const SUPABASE_MEDIA_BUCKET = 'rasmalas-media';
 
+const SERVER_TUS_CHUNK_SIZE = 6 * 1024 * 1024;
+
+function getServerSupabaseTusEndpoint(baseUrl: string): string {
+  const clean = baseUrl.replace(/\/+$/, '');
+  try {
+    const parsed = new URL(clean);
+    if (parsed.hostname.endsWith('.supabase.co')) {
+      const storageHost = parsed.hostname.replace('.supabase.co', '.storage.supabase.co');
+      return `${parsed.protocol}//${storageHost}/storage/v1/upload/resumable`;
+    }
+  } catch {
+    // fallback below
+  }
+  return `${clean}/storage/v1/upload/resumable`;
+}
+
+async function uploadMediaViaTusServer(
+  fileBody: Buffer | Blob,
+  storagePath: string,
+  mimeType: string,
+  authToken: string,
+  apiKey: string,
+  baseUrl: string
+): Promise<void> {
+  const totalSize = Buffer.isBuffer(fileBody) ? fileBody.length : fileBody.size;
+  const tusEndpoint = getServerSupabaseTusEndpoint(baseUrl);
+  const encodeMeta = (v: string) => Buffer.from(v, 'utf8').toString('base64');
+  const metadata = [
+    `bucketName ${encodeMeta(SUPABASE_MEDIA_BUCKET)}`,
+    `objectName ${encodeMeta(storagePath)}`,
+    `contentType ${encodeMeta(mimeType)}`,
+    `cacheControl ${encodeMeta('3600')}`,
+  ].join(',');
+
+  const createRes = await fetch(tusEndpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      apikey: apiKey,
+      'x-upsert': 'true',
+      'Tus-Resumable': '1.0.0',
+      'Upload-Length': String(totalSize),
+      'Upload-Metadata': metadata,
+    },
+  });
+
+  if (!createRes.ok) {
+    const errText = await createRes.text();
+    throw new Error(errText || `TUS create HTTP ${createRes.status}`);
+  }
+
+  const location = createRes.headers.get('location') || createRes.headers.get('Location');
+  if (!location) {
+    throw new Error('TUS upload tidak mengembalikan header Location.');
+  }
+
+  const uploadUrl = new URL(location, tusEndpoint).toString();
+  let offset = 0;
+
+  while (offset < totalSize) {
+    const nextEnd = Math.min(offset + SERVER_TUS_CHUNK_SIZE, totalSize);
+    const chunk = Buffer.isBuffer(fileBody)
+      ? fileBody.subarray(offset, nextEnd)
+      : fileBody.slice(offset, nextEnd);
+
+    const patchRes = await fetch(uploadUrl, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        apikey: apiKey,
+        'Tus-Resumable': '1.0.0',
+        'Upload-Offset': String(offset),
+        'Content-Type': 'application/offset+octet-stream',
+      },
+      body: chunk as BodyInit,
+    });
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text();
+      throw new Error(errText || `TUS patch HTTP ${patchRes.status}`);
+    }
+
+    const serverOffsetRaw = patchRes.headers.get('upload-offset') || patchRes.headers.get('Upload-Offset');
+    const serverOffset = serverOffsetRaw !== null ? Number(serverOffsetRaw) : NaN;
+    offset = Number.isFinite(serverOffset) && serverOffset > offset ? serverOffset : nextEnd;
+  }
+}
+
 export async function uploadMediaToSupabaseStorage(
   fileBody: Buffer | Blob,
   storagePath: string,
@@ -199,26 +287,60 @@ export async function uploadMediaToSupabaseStorage(
   const client = getSupabaseAdminClient(sbToken);
   if (!client) return null;
 
-  let { error } = await client.storage
-    .from(SUPABASE_MEDIA_BUCKET)
-    .upload(storagePath, fileBody, {
-      contentType: mimeType,
-      upsert: true,
-    });
+  const url = getEnv('SUPABASE_URL');
+  const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const anonKey = getEnv('SUPABASE_ANON_KEY');
+  const hasSvc = hasServiceRoleKey();
+  const effectiveToken = hasSvc ? serviceKey : sbToken || anonKey;
+  const effectiveApiKey = hasSvc ? serviceKey : anonKey || serviceKey;
+  const totalSize = Buffer.isBuffer(fileBody) ? fileBody.length : fileBody.size;
 
-  if (error && error.message.toLowerCase().includes('not found') && hasServiceRoleKey()) {
-    await client.storage.createBucket(SUPABASE_MEDIA_BUCKET, {
-      public: true,
-      fileSizeLimit: null,
-      allowedMimeTypes: null,
-    });
-    const retry = await client.storage
+  const attemptUpload = async () => {
+    if (totalSize > SERVER_TUS_CHUNK_SIZE && url && effectiveToken && effectiveApiKey) {
+      try {
+        await uploadMediaViaTusServer(
+          fileBody,
+          storagePath,
+          mimeType,
+          effectiveToken,
+          effectiveApiKey,
+          url
+        );
+        return null;
+      } catch (err) {
+        return { message: err instanceof Error ? err.message : 'TUS upload failed' };
+      }
+    }
+
+    const { error } = await client.storage
       .from(SUPABASE_MEDIA_BUCKET)
       .upload(storagePath, fileBody, {
         contentType: mimeType,
         upsert: true,
       });
-    error = retry.error;
+    return error;
+  };
+
+  let error = await attemptUpload();
+
+  if (error && error.message.toLowerCase().includes('not found') && hasSvc) {
+    await client.storage.createBucket(SUPABASE_MEDIA_BUCKET, {
+      public: true,
+      fileSizeLimit: null,
+      allowedMimeTypes: null,
+    });
+    error = await attemptUpload();
+  } else if (
+    error &&
+    /maximum allowed size/i.test(error.message) &&
+    hasSvc
+  ) {
+    await client.storage.updateBucket(SUPABASE_MEDIA_BUCKET, {
+      public: true,
+      fileSizeLimit: null,
+      allowedMimeTypes: null,
+    });
+    error = await attemptUpload();
   }
 
   if (error) {

@@ -77,9 +77,6 @@ export function MusicPlayerSection({
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10">
           <div>
-            <p className="text-xs font-medium tracking-wide text-[#EAB308] mb-2">
-              {sectionMeta?.kicker || '02. Pemutar Musik Streaming'}
-            </p>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Katalog Rilisan & Studio Dub Stream'}
             </h2>

@@ -43,6 +43,7 @@ import {
   updateSupabaseAdminUsernameServer,
   uploadMediaToSupabaseStorage,
 } from './server/supabase.ts';
+import { normalizeTourStatus } from './src/shared/tourUtils.ts';
 import type {
   BandProfile,
   GalleryCategory,
@@ -1050,9 +1051,10 @@ async function startServer(): Promise<void> {
       return;
     }
     const allowedStatuses: TourStatus[] = ['Tersedia', 'Terbatas', 'Habis', 'Selesai'];
-    const status = allowedStatuses.includes(body.status as TourStatus)
+    const requestedStatus = allowedStatuses.includes(body.status as TourStatus)
       ? (body.status as TourStatus)
       : 'Tersedia';
+    const status = normalizeTourStatus(date, requestedStatus);
 
     const newTour: TourDate = {
       id: makeId('tour'),
@@ -1110,6 +1112,7 @@ async function startServer(): Promise<void> {
       updated.priceLabel = body.priceLabel.trim().slice(0, 30);
     if (body.status && allowedStatuses.includes(body.status))
       updated.status = body.status;
+    updated.status = normalizeTourStatus(updated.date, updated.status);
     if (typeof body.ticketUrl === 'string')
       updated.ticketUrl = body.ticketUrl.trim().slice(0, 300);
     if (typeof body.notes === 'string') updated.notes = body.notes.trim().slice(0, 200);

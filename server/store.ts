@@ -20,6 +20,7 @@ import {
 } from './supabase.ts';
 
 import { DEFAULT_STATE } from '../src/shared/defaultState.ts';
+import { normalizeTourStatus } from '../src/shared/tourUtils.ts';
 export { DEFAULT_STATE };
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -60,6 +61,17 @@ function saveStateToDisk(state: BandState): void {
 }
 
 export function getState(): BandState {
+  let changed = false;
+  for (const tour of currentState.tours) {
+    const resolved = normalizeTourStatus(tour.date, tour.status);
+    if (tour.status !== resolved) {
+      tour.status = resolved;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveStateToDisk(currentState);
+  }
   return currentState;
 }
 
@@ -368,7 +380,7 @@ export async function initStore(): Promise<void> {
         venue: t.venue,
         stageTime: t.stage_time,
         priceLabel: t.price_label,
-        status: t.status,
+        status: normalizeTourStatus(t.date, t.status),
         ticketUrl: t.ticket_url,
         rsvpCount: t.rsvp_count,
         notes: t.notes ?? undefined,

@@ -48,9 +48,6 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
           </div>
 
           <div className="lg:col-span-7 space-y-5">
-            <p className="text-xs font-medium tracking-wide text-[#EAB308]">
-              {sectionMeta?.kicker || '01. Profil Kolektif & Filosofi Suara'}
-            </p>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Rekaman Pita Analog, Akar Reggae Pesisir.'}
             </h2>

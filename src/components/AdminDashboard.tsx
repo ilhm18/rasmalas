@@ -54,6 +54,7 @@ import {
   sbUpsertTrack,
 } from '../lib/supabaseBrowser';
 import { resolveAssetUrl } from '../shared/assetUrl';
+import { isTourDatePast, normalizeTourStatus } from '../shared/tourUtils';
 import type {
   BandMember,
   BandProfile,
@@ -171,6 +172,7 @@ export function AdminDashboard({
   const [uploadingTarget, setUploadingTarget] = useState<
     'logo' | 'hero' | 'studio' | 'section' | 'cover' | 'audio' | 'gallery' | 'social' | null
   >(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // Profile & Lineup state
   const [profileForm, setProfileForm] = useState<BandProfile>(bandState.profile);
@@ -298,9 +300,10 @@ export function AdminDashboard({
     target: 'logo' | 'hero' | 'studio' | 'section' | 'cover' | 'audio' | 'gallery' | 'social'
   ): Promise<{ url: string; mediaType: 'image' | 'video' | 'audio' } | null> {
     setUploadingTarget(target);
+    setUploadProgress(0);
     try {
       if (backendMode === 'supabase') {
-        return await sbUploadMedia(file, folder);
+        return await sbUploadMedia(file, folder, (pct) => setUploadProgress(pct));
       }
       if (backendMode === 'static') {
         throw new Error(
@@ -328,12 +331,14 @@ export function AdminDashboard({
       if (!res.ok || !data.url) {
         throw new Error(data.error || 'Gagal mengunggah file media.');
       }
+      setUploadProgress(100);
       return { url: data.url, mediaType: data.mediaType ?? 'image' };
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Gagal mengunggah file media.');
       return null;
     } finally {
       setUploadingTarget(null);
+      setUploadProgress(null);
     }
   }
 
@@ -946,7 +951,7 @@ export function AdminDashboard({
       venue: t.venue,
       stageTime: t.stageTime,
       priceLabel: t.priceLabel,
-      status: t.status,
+      status: normalizeTourStatus(t.date, t.status),
       ticketUrl: t.ticketUrl,
       notes: t.notes ?? '',
     });
@@ -970,6 +975,7 @@ export function AdminDashboard({
   async function handleSaveTour(e: FormEvent) {
     e.preventDefault();
     if (!tourForm.city.trim() || !tourForm.venue.trim()) return;
+    const resolvedStatus = normalizeTourStatus(tourForm.date.trim(), tourForm.status);
     setSaving(true);
     try {
       if (backendMode === 'supabase') {
@@ -984,7 +990,7 @@ export function AdminDashboard({
           venue: tourForm.venue.trim(),
           stageTime: tourForm.stageTime.trim() || '20:00 WIB',
           priceLabel: tourForm.priceLabel.trim() || 'Rp 150.000',
-          status: tourForm.status,
+          status: resolvedStatus,
           ticketUrl: tourForm.ticketUrl.trim() || '#jadwal',
           rsvpCount: existing?.rsvpCount ?? 0,
           notes: tourForm.notes.trim() || undefined,
@@ -997,7 +1003,7 @@ export function AdminDashboard({
         const res = await fetch(url, {
           method,
           headers: buildHeaders(),
-          body: JSON.stringify(tourForm),
+          body: JSON.stringify({ ...tourForm, status: resolvedStatus }),
         });
         const data = (await res.json()) as { error?: string };
         if (!res.ok) throw new Error(data.error || 'Gagal menyimpan jadwal.');
@@ -1016,20 +1022,25 @@ export function AdminDashboard({
 
   async function handleQuickTourStatus(id: string, status: TourStatus) {
     try {
+      const existing = bandState.tours.find((t) => t.id === id);
+      const nextStatus = existing ? normalizeTourStatus(existing.date, status) : status;
       if (backendMode === 'supabase') {
-        const existing = bandState.tours.find((t) => t.id === id);
         if (!existing) throw new Error('Jadwal tidak ditemukan.');
-        await sbUpsertTour({ ...existing, status });
+        await sbUpsertTour({ ...existing, status: nextStatus });
       } else {
         const res = await fetch(`/api/admin/tours/${id}`, {
           method: 'PUT',
           headers: buildHeaders(),
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({ status: nextStatus }),
         });
         if (!res.ok) throw new Error('Gagal mengubah status jadwal.');
       }
       await onRefreshState();
-      showNotice('Status tiket diperbarui real-time.');
+      showNotice(
+        existing && isTourDatePast(existing.date)
+          ? 'Tanggal sudah lewat, status otomatis menjadi Selesai.'
+          : 'Status tiket diperbarui real-time.'
+      );
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Gagal mengubah status jadwal.');
     }
@@ -1426,8 +1437,17 @@ export function AdminDashboard({
     }
   }
 
+  const normalizedTours = useMemo(
+    () =>
+      bandState.tours.map((t) => ({
+        ...t,
+        status: normalizeTourStatus(t.date, t.status),
+      })),
+    [bandState.tours]
+  );
+
   const totalPlays = bandState.tracks.reduce((acc, t) => acc + t.plays, 0);
-  const upcomingTours = bandState.tours.filter((t) => t.status !== 'Selesai');
+  const upcomingTours = normalizedTours.filter((t) => t.status !== 'Selesai');
   const totalLikes = bandState.socialPosts.reduce((acc, p) => acc + p.likes, 0);
 
   const filteredTracks = useMemo(() => {
@@ -1437,10 +1457,10 @@ export function AdminDashboard({
   }, [bandState.tracks, trackSearch]);
 
   const filteredTours = useMemo(() => {
-    if (tourFilter === 'upcoming') return bandState.tours.filter((t) => t.status !== 'Selesai');
-    if (tourFilter === 'past') return bandState.tours.filter((t) => t.status === 'Selesai');
-    return bandState.tours;
-  }, [bandState.tours, tourFilter]);
+    if (tourFilter === 'upcoming') return normalizedTours.filter((t) => t.status !== 'Selesai');
+    if (tourFilter === 'past') return normalizedTours.filter((t) => t.status === 'Selesai');
+    return normalizedTours;
+  }, [normalizedTours, tourFilter]);
 
   const filteredPhotos = useMemo(() => {
     if (galleryFilter === 'Semua') return bandState.gallery;
@@ -3317,13 +3337,13 @@ export function AdminDashboard({
                       <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#EAB308] cursor-pointer">
                         <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
                         {uploadingTarget === 'audio'
-                          ? 'Mengunggah Lagu...'
+                          ? `Mengunggah Lagu${uploadProgress !== null ? ` (${uploadProgress}%)` : '...'}`
                           : trackForm.audioUrl
                             ? 'Ganti File Lagu (MP3/WAV)'
                             : 'Unggah File Lagu (MP3/WAV/M4A)'}
                         <input
                           type="file"
-                          accept="audio/*"
+                          accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.aac"
                           disabled={uploadingTarget === 'audio'}
                           onChange={handleTrackAudioUpload}
                           className="sr-only"
@@ -3491,7 +3511,19 @@ export function AdminDashboard({
                     type="date"
                     required
                     value={tourForm.date}
-                    onChange={(e) => setTourForm({ ...tourForm, date: e.target.value })}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      const past = isTourDatePast(nextDate);
+                      setTourForm((prev) => ({
+                        ...prev,
+                        date: nextDate,
+                        status: past
+                          ? 'Selesai'
+                          : isTourDatePast(prev.date) && prev.status === 'Selesai'
+                            ? 'Tersedia'
+                            : prev.status,
+                      }));
+                    }}
                     className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   />
                   <input
@@ -3543,18 +3575,26 @@ export function AdminDashboard({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <select
-                    value={tourForm.status}
-                    onChange={(e) =>
-                      setTourForm({ ...tourForm, status: e.target.value as TourStatus })
-                    }
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  >
-                    <option value="Tersedia">Status: Tersedia</option>
-                    <option value="Terbatas">Status: Terbatas</option>
-                    <option value="Habis">Status: Habis</option>
-                    <option value="Selesai">Status: Selesai</option>
-                  </select>
+                  <div className="space-y-1">
+                    <select
+                      value={normalizeTourStatus(tourForm.date, tourForm.status)}
+                      disabled={isTourDatePast(tourForm.date)}
+                      onChange={(e) =>
+                        setTourForm({ ...tourForm, status: e.target.value as TourStatus })
+                      }
+                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] disabled:opacity-75"
+                    >
+                      <option value="Tersedia">Status: Tersedia</option>
+                      <option value="Terbatas">Status: Terbatas</option>
+                      <option value="Habis">Status: Habis</option>
+                      <option value="Selesai">Status: Selesai</option>
+                    </select>
+                    {isTourDatePast(tourForm.date) && (
+                      <p className="text-[11px] text-[#EAB308]">
+                        Tanggal sudah lewat — status otomatis berubah menjadi Selesai.
+                      </p>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={tourForm.ticketUrl}
@@ -3634,10 +3674,11 @@ export function AdminDashboard({
                         <select
                           aria-label={`Ubah status ${t.venue}`}
                           value={t.status}
+                          disabled={isTourDatePast(t.date)}
                           onChange={(e) =>
                             handleQuickTourStatus(t.id, e.target.value as TourStatus)
                           }
-                          className="min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                          className="min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] disabled:opacity-75"
                         >
                           <option value="Tersedia">Tersedia</option>
                           <option value="Terbatas">Terbatas</option>

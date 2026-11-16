@@ -90,9 +90,6 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-8 sm:mb-10">
           <div>
-            <p className="text-xs font-medium tracking-wide text-[#EAB308] mb-2">
-              {sectionMeta?.kicker || '04. Galeri Foto & Video Dokumentasi'}
-            </p>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Arsip Panggung, Studio & Backstage'}
             </h2>

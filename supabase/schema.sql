@@ -353,6 +353,47 @@ AS $$
   UPDATE public.social_posts SET likes = likes + 1 WHERE id = post_id;
 $$;
 
+-- Otomatis ubah status jadwal menjadi 'Selesai' jika tanggal sudah lewat (WIB / Asia/Jakarta)
+CREATE OR REPLACE FUNCTION public.sync_tour_status_before_write()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_today TEXT := to_char((now() AT TIME ZONE 'Asia/Jakarta')::date, 'YYYY-MM-DD');
+BEGIN
+  IF NEW.date ~ '^\d{4}-\d{2}-\d{2}$' AND NEW.date < v_today THEN
+    NEW.status := 'Selesai';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_tours_auto_selesai ON public.tours;
+CREATE TRIGGER trg_tours_auto_selesai
+  BEFORE INSERT OR UPDATE ON public.tours
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_tour_status_before_write();
+
+CREATE OR REPLACE FUNCTION public.sync_past_tour_statuses()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_today TEXT := to_char((now() AT TIME ZONE 'Asia/Jakarta')::date, 'YYYY-MM-DD');
+  v_count INTEGER;
+BEGIN
+  UPDATE public.tours
+  SET status = 'Selesai'
+  WHERE date ~ '^\d{4}-\d{2}-\d{2}$'
+    AND date < v_today
+    AND status <> 'Selesai';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
 -- ============================================================================
 -- HAK AKSES SCHEMA & TABEL (GRANTS) UNTUK ANON & AUTHENTICATED
 -- ============================================================================
@@ -394,7 +435,8 @@ GRANT EXECUTE ON FUNCTION
   public.resolve_admin_login_email(TEXT),
   public.increment_track_play(TEXT),
   public.increment_tour_rsvp(TEXT),
-  public.increment_post_like(TEXT)
+  public.increment_post_like(TEXT),
+  public.sync_past_tour_statuses()
 TO anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION
@@ -645,11 +687,11 @@ INSERT INTO public.site_sections (
   id, slug, nav_label, kicker, title, subtitle, builtin_key, visible, show_in_nav, sort_order
 )
 VALUES
-  ('sec-profil', 'profil', 'Profil', '01. Profil Kolektif & Filosofi Suara', 'Rekaman Pita Analog, Akar Reggae Pesisir.', 'Instrumen live tanpa backing track digital', 'profil', true, true, 0),
-  ('sec-musik', 'musik', 'Musik', '02. Pemutar Musik Streaming', 'Katalog Rilisan & Studio Dub Stream', NULL, 'musik', true, true, 1),
-  ('sec-jadwal', 'jadwal', 'Jadwal', '03. Jadwal Panggung & Acara', 'Jadwal Penampilan Rasmalas', 'Cek kota terdekat dan ketersediaan tiket.', 'jadwal', true, true, 2),
-  ('sec-galeri', 'galeri', 'Galeri', '04. Galeri Foto & Video Dokumentasi', 'Arsip Panggung, Studio & Backstage', NULL, 'galeri', true, true, 3),
-  ('sec-sosial', 'sosial', 'Sosial', '05. Integrasi Media Sosial', 'Kanal Resmi & Siaran Langsung Komunitas', NULL, 'sosial', true, true, 4)
+  ('sec-profil', 'profil', 'Profil', '', 'Rekaman Pita Analog, Akar Reggae Pesisir.', 'Instrumen live tanpa backing track digital', 'profil', true, true, 0),
+  ('sec-musik', 'musik', 'Musik', '', 'Katalog Rilisan & Studio Dub Stream', NULL, 'musik', true, true, 1),
+  ('sec-jadwal', 'jadwal', 'Jadwal', '', 'Jadwal Penampilan Rasmalas', 'Cek kota terdekat dan ketersediaan tiket.', 'jadwal', true, true, 2),
+  ('sec-galeri', 'galeri', 'Galeri', '', 'Arsip Panggung, Studio & Backstage', NULL, 'galeri', true, true, 3),
+  ('sec-sosial', 'sosial', 'Sosial', '', 'Kanal Resmi & Siaran Langsung Komunitas', NULL, 'sosial', true, true, 4)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

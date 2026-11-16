@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Calendar, Clock, MapPin, Search, Ticket, X } from 'lucide-react';
+import { normalizeTourStatus } from '../shared/tourUtils';
 import type { SiteSection, TourDate, TourStatus } from '../shared/types';
 
 interface TourSectionProps {
@@ -37,9 +38,18 @@ export function TourSection({ tours, sectionMeta }: TourSectionProps) {
   const [query, setQuery] = useState('');
   const [selectedTour, setSelectedTour] = useState<TourDate | null>(null);
 
+  const normalizedTours = useMemo(
+    () =>
+      tours.map((t) => ({
+        ...t,
+        status: normalizeTourStatus(t.date, t.status),
+      })),
+    [tours]
+  );
+
   const filteredTours = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return tours.filter((t) => {
+    return normalizedTours.filter((t) => {
       if (filter === 'upcoming' && t.status === 'Selesai') return false;
       if (filter === 'past' && t.status !== 'Selesai') return false;
       if (!q) return true;
@@ -49,7 +59,7 @@ export function TourSection({ tours, sectionMeta }: TourSectionProps) {
         t.country.toLowerCase().includes(q)
       );
     });
-  }, [tours, filter, query]);
+  }, [normalizedTours, filter, query]);
 
   return (
     <section
@@ -59,9 +69,6 @@ export function TourSection({ tours, sectionMeta }: TourSectionProps) {
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
           <div>
-            <p className="text-xs font-medium tracking-wide text-[#EAB308] mb-2">
-              {sectionMeta?.kicker || '03. Jadwal Panggung & Acara'}
-            </p>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Jadwal Penampilan Rasmalas'}
             </h2>
