@@ -1,24 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  fetchBandStateFromSupabase,
-  getBrowserSupabaseClient,
-  isBrowserSupabaseConfigured,
-} from '../lib/supabaseBrowser';
-import { DEFAULT_STATE } from '../shared/defaultState';
 import type {
   BandProfile,
   BandState,
-  FanShoutout,
   GalleryPhoto,
   SiteSection,
   SocialChannel,
   SocialPost,
+  FanShoutout,
   TourDate,
   Track,
   WsServerMessage,
 } from '../shared/types';
-
-export type BackendMode = 'express' | 'supabase' | 'static';
 
 interface SocialPayload {
   socialChannels: SocialChannel[];
@@ -31,7 +23,6 @@ export function useBandRealtime() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
-  const [backendMode, setBackendMode] = useState<BackendMode>('static');
   const [onlineCount, setOnlineCount] = useState(1);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -40,32 +31,13 @@ export function useBandRealtime() {
   const fetchInitialState = useCallback(async () => {
     try {
       const res = await fetch('/api/state');
-      const contentType = res.headers.get('content-type') || '';
-      if (!res.ok || !contentType.includes('application/json')) {
-        throw new Error('STATIC_FALLBACK');
-      }
+      if (!res.ok) throw new Error('Gagal memuat data band.');
       const data = (await res.json()) as { state: BandState; onlineCount: number };
       setBandState(data.state);
       setOnlineCount(Math.max(1, data.onlineCount || 1));
-      setBackendMode('express');
       setError(null);
-    } catch {
-      if (isBrowserSupabaseConfigured()) {
-        try {
-          const sbState = await fetchBandStateFromSupabase();
-          setBandState(sbState);
-          setBackendMode('supabase');
-          setError(null);
-        } catch {
-          setBandState((prev) => prev ?? DEFAULT_STATE);
-          setBackendMode('supabase');
-          setError(null);
-        }
-      } else {
-        setBandState((prev) => prev ?? DEFAULT_STATE);
-        setBackendMode('static');
-        setError(null);
-      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan koneksi.');
     } finally {
       setLoading(false);
     }
@@ -75,9 +47,7 @@ export function useBandRealtime() {
     void fetchInitialState();
   }, [fetchInitialState]);
 
-  // Express WebSocket connection
   useEffect(() => {
-    if (backendMode !== 'express') return;
     let unmounted = false;
 
     function connect() {
@@ -162,38 +132,7 @@ export function useBandRealtime() {
       }
       wsRef.current?.close();
     };
-  }, [backendMode]);
-
-  // Direct Supabase Realtime subscription when running on static hosting (e.g. GitHub Pages)
-  useEffect(() => {
-    if (backendMode !== 'supabase') return;
-    const client = getBrowserSupabaseClient();
-    if (!client) return;
-
-    const refreshFromSupabase = () => {
-      void fetchBandStateFromSupabase().then((next) => setBandState(next));
-    };
-
-    const channel = client
-      .channel('rasmalas-public-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'band_profile' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_sections' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'band_members' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tracks' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tours' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_photos' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'social_channels' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'social_posts' }, refreshFromSupabase)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'fan_shoutouts' }, refreshFromSupabase)
-      .subscribe((status) => {
-        setWsConnected(status === 'SUBSCRIBED');
-      });
-
-    return () => {
-      setWsConnected(false);
-      void client.removeChannel(channel);
-    };
-  }, [backendMode]);
+  }, []);
 
   return {
     bandState,
@@ -201,7 +140,6 @@ export function useBandRealtime() {
     loading,
     error,
     wsConnected,
-    backendMode,
     onlineCount,
     refetch: fetchInitialState,
   };

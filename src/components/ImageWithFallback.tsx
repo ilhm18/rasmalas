@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Disc3 } from 'lucide-react';
-import { resolveAssetUrl } from '../shared/assetUrl';
 
 interface ImageWithFallbackProps {
   src?: string;
@@ -16,9 +15,8 @@ export function ImageWithFallback({
   className = '',
 }: ImageWithFallbackProps) {
   const [failed, setFailed] = useState(false);
-  const resolvedSrc = resolveAssetUrl(src);
 
-  if (!resolvedSrc || failed) {
+  if (!src || failed) {
     return (
       <div
         role="img"
@@ -35,7 +33,7 @@ export function ImageWithFallback({
 
   return (
     <img
-      src={resolvedSrc}
+      src={src}
       alt={alt}
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}

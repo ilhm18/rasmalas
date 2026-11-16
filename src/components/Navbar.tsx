@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { resolveAssetUrl } from '../shared/assetUrl';
 import type { SiteSection } from '../shared/types';
 
 interface NavbarProps {
@@ -39,7 +38,7 @@ export function Navbar({
           {logoUrl ? (
             <span className="inline-block h-10 w-36 overflow-hidden">
               <img
-                src={resolveAssetUrl(logoUrl)}
+                src={logoUrl}
                 alt={bandName}
                 className="h-full w-full object-cover object-center scale-[1.15]"
               />

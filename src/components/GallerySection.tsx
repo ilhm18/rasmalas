@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Film, X } from 'lucide-react';
-import { resolveAssetUrl } from '../shared/assetUrl';
 import type { GalleryCategory, GalleryPhoto, SiteSection } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -108,7 +107,7 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
                 >
                   {isVideo ? (
                     <video
-                      src={resolveAssetUrl(photo.imageUrl)}
+                      src={photo.imageUrl}
                       muted
                       playsInline
                       loop
@@ -205,7 +204,7 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
             <div className="max-h-full max-w-5xl overflow-hidden rounded-xl border border-[#2A2620]">
               {isVideoItem(activePhoto) ? (
                 <video
-                  src={resolveAssetUrl(activePhoto.imageUrl)}
+                  src={activePhoto.imageUrl}
                   controls
                   autoPlay
                   playsInline

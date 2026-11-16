@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
 import { ExternalLink, Heart, MessageSquare, Radio, Send } from 'lucide-react';
-import { resolveAssetUrl } from '../shared/assetUrl';
 import type {
   FanShoutout,
   SiteSection,
@@ -167,7 +166,7 @@ export function SocialRealtimeSection({
                         {post.mediaType === 'video' ||
                         /\.(mp4|webm|mov)(\?|$)/i.test(post.mediaUrl) ? (
                           <video
-                            src={resolveAssetUrl(post.mediaUrl)}
+                            src={post.mediaUrl}
                             controls
                             playsInline
                             preload="metadata"

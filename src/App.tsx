@@ -10,31 +10,13 @@ import { SocialRealtimeSection } from './components/SocialRealtimeSection';
 import { StickyMiniPlayer } from './components/StickyMiniPlayer';
 import { TourSection } from './components/TourSection';
 import { useBandRealtime } from './hooks/useBandRealtime';
-import {
-  sbAdminLogout,
-  sbAdminSessionCheck,
-  sbIncrementPostLike,
-  sbIncrementTourRsvp,
-  sbIncrementTrackPlay,
-  sbInsertShoutout,
-} from './lib/supabaseBrowser';
-import { resolveAssetUrl } from './shared/assetUrl';
-import { getClientReggaeTrackUrl } from './shared/clientAudioSynth';
 import type { SiteSection, Track } from './shared/types';
 
 const TOKEN_STORAGE_KEY = 'senja_admin_token';
 
 export default function App() {
-  const {
-    bandState,
-    setBandState,
-    loading,
-    error,
-    wsConnected,
-    backendMode,
-    onlineCount,
-    refetch,
-  } = useBandRealtime();
+  const { bandState, loading, error, wsConnected, onlineCount, refetch } =
+    useBandRealtime();
 
   // View mode: public site or full Admin Dashboard
   const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
@@ -58,36 +40,13 @@ export default function App() {
   const [repeatOne, setRepeatOne] = useState(false);
   const [miniDismissed, setMiniDismissed] = useState(false);
 
-  // Verify stored admin session on mount / mode detection
+  // Verify stored admin session on mount
   useEffect(() => {
-    if (loading) return;
     async function checkSession() {
       try {
-        if (backendMode === 'supabase') {
-          const sbSession = await sbAdminSessionCheck();
-          if (sbSession.authenticated && sbSession.email && sbSession.token) {
-            setIsAuthenticated(true);
-            setAdminEmail(sbSession.email);
-            setAuthToken(sbSession.token);
-          } else {
-            setIsAuthenticated(false);
-            setAdminEmail(null);
-            window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-            setAuthToken(null);
-          }
-          return;
-        }
-        if (backendMode === 'static') {
-          setIsAuthenticated(false);
-          setAdminEmail(null);
-          return;
-        }
-
         const headers: Record<string, string> = {};
         if (authToken) headers.Authorization = `Bearer ${authToken}`;
         const res = await fetch('/api/auth/me', { headers });
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) return;
         const data = (await res.json()) as {
           authenticated: boolean;
           email: string | null;
@@ -106,27 +65,18 @@ export default function App() {
       }
     }
     void checkSession();
-  }, [authToken, backendMode, loading]);
+  }, [authToken]);
 
   const tracks = bandState?.tracks ?? [];
   const currentTrack: Track | null =
     tracks.find((t) => t.id === currentTrackId) ?? null;
 
-  const getTrackSource = useCallback(
-    (track: Track): string => {
-      if (track.audioUrl && track.audioUrl.trim()) {
-        return resolveAssetUrl(track.audioUrl.trim()) || track.audioUrl.trim();
-      }
-      if (backendMode === 'express') {
-        return (
-          resolveAssetUrl(`/api/audio/${encodeURIComponent(track.id)}.wav`) ||
-          `/api/audio/${encodeURIComponent(track.id)}.wav`
-        );
-      }
-      return getClientReggaeTrackUrl(track);
-    },
-    [backendMode]
-  );
+  const getTrackSource = useCallback((track: Track): string => {
+    if (track.audioUrl && track.audioUrl.trim()) {
+      return track.audioUrl.trim();
+    }
+    return `/api/audio/${encodeURIComponent(track.id)}.wav`;
+  }, []);
 
   const playTrack = useCallback(
     (track: Track) => {
@@ -138,10 +88,7 @@ export default function App() {
       setCurrentTime(0);
       setDuration(track.durationSec);
 
-      const resolvedHref = src.startsWith('blob:')
-        ? src
-        : new URL(src, window.location.origin).href;
-      if (audio.src !== resolvedHref) {
+      if (audio.src !== new URL(src, window.location.origin).href) {
         audio.src = src;
       }
       audio.volume = isMuted ? 0 : volume;
@@ -149,31 +96,15 @@ export default function App() {
         .play()
         .then(() => {
           setIsPlaying(true);
-          if (backendMode === 'express') {
-            void fetch(`/api/tracks/${encodeURIComponent(track.id)}/play`, {
-              method: 'POST',
-            });
-          } else {
-            setBandState((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    tracks: prev.tracks.map((t) =>
-                      t.id === track.id ? { ...t, plays: t.plays + 1 } : t
-                    ),
-                  }
-                : prev
-            );
-            if (backendMode === 'supabase') {
-              void sbIncrementTrackPlay(track.id);
-            }
-          }
+          void fetch(`/api/tracks/${encodeURIComponent(track.id)}/play`, {
+            method: 'POST',
+          });
         })
         .catch(() => {
           setIsPlaying(false);
         });
     },
-    [backendMode, getTrackSource, isMuted, setBandState, volume]
+    [getTrackSource, isMuted, volume]
   );
 
   const handleTogglePlay = useCallback(() => {
@@ -274,82 +205,25 @@ export default function App() {
   }, [repeatOne, handleNext]);
 
   async function handleRsvpTour(tourId: string) {
-    if (backendMode === 'express') {
-      await fetch(`/api/tours/${encodeURIComponent(tourId)}/rsvp`, { method: 'POST' });
-      return;
-    }
-    setBandState((prev) =>
-      prev
-        ? {
-            ...prev,
-            tours: prev.tours.map((t) =>
-              t.id === tourId ? { ...t, rsvpCount: t.rsvpCount + 1 } : t
-            ),
-          }
-        : prev
-    );
-    if (backendMode === 'supabase') {
-      await sbIncrementTourRsvp(tourId);
-    }
+    await fetch(`/api/tours/${encodeURIComponent(tourId)}/rsvp`, { method: 'POST' });
   }
 
   async function handleLikePost(postId: string) {
-    if (backendMode === 'express') {
-      await fetch(`/api/social/posts/${encodeURIComponent(postId)}/like`, {
-        method: 'POST',
-      });
-      return;
-    }
-    setBandState((prev) =>
-      prev
-        ? {
-            ...prev,
-            socialPosts: prev.socialPosts.map((p) =>
-              p.id === postId ? { ...p, likes: p.likes + 1 } : p
-            ),
-          }
-        : prev
-    );
-    if (backendMode === 'supabase') {
-      await sbIncrementPostLike(postId);
-    }
+    await fetch(`/api/social/posts/${encodeURIComponent(postId)}/like`, {
+      method: 'POST',
+    });
   }
 
   async function handleSendShoutout(senderName: string, city: string, message: string) {
-    if (backendMode === 'express') {
-      const res = await fetch('/api/social/shoutouts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderName, city, message }),
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        throw new Error(data.error || 'Gagal mengirim pesan.');
-      }
-      return;
+    const res = await fetch('/api/social/shoutouts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senderName, city, message }),
+    });
+    if (!res.ok) {
+      const data = (await res.json()) as { error?: string };
+      throw new Error(data.error || 'Gagal mengirim pesan.');
     }
-    if (backendMode === 'supabase') {
-      await sbInsertShoutout(senderName, city, message);
-      await refetch();
-      return;
-    }
-    setBandState((prev) =>
-      prev
-        ? {
-            ...prev,
-            shoutouts: [
-              {
-                id: `sh-${Date.now().toString(36)}`,
-                senderName: senderName.trim(),
-                city: city.trim() || 'Nusantara',
-                message: message.trim(),
-                createdAt: new Date().toISOString(),
-              },
-              ...prev.shoutouts,
-            ],
-          }
-        : prev
-    );
   }
 
   function handleLoginSuccess(email: string, token: string) {
@@ -364,11 +238,7 @@ export default function App() {
     setAuthToken(null);
     setAdminEmail(null);
     setIsAuthenticated(false);
-    if (backendMode === 'express') {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } else if (backendMode === 'supabase') {
-      await sbAdminLogout();
-    }
+    await fetch('/api/auth/logout', { method: 'POST' });
   }
 
   if (loading && !bandState) {
@@ -408,7 +278,6 @@ export default function App() {
       {viewMode === 'admin' ? (
         <AdminDashboard
           bandState={bandState}
-          backendMode={backendMode}
           isAuthenticated={isAuthenticated}
           adminEmail={adminEmail}
           authToken={authToken}
@@ -540,7 +409,7 @@ export default function App() {
                       {bandState.profile.logoUrl ? (
                         <span className="inline-block h-8 w-28 overflow-hidden">
                           <img
-                            src={resolveAssetUrl(bandState.profile.logoUrl)}
+                            src={bandState.profile.logoUrl}
                             alt={bandState.profile.name}
                             className="h-full w-full object-cover object-center scale-[1.15]"
                           />

@@ -4,9 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(({command}) => {
+export default defineConfig(() => {
   return {
-    base: command === 'build' ? (process.env.VITE_BASE_PATH || './') : '/',
     plugins: [
       react(),
       tailwindcss(),

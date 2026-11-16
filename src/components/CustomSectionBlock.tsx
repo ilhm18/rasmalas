@@ -1,5 +1,4 @@
 import { ArrowRight } from 'lucide-react';
-import { resolveAssetUrl } from '../shared/assetUrl';
 import type { SiteSection } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -70,7 +69,7 @@ export function CustomSectionBlock({ section }: CustomSectionBlockProps) {
               <div className="overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm aspect-[4/3]">
                 {isVideo ? (
                   <video
-                    src={resolveAssetUrl(section.imageUrl)}
+                    src={section.imageUrl}
                     controls
                     playsInline
                     preload="metadata"
