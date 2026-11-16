@@ -14,9 +14,11 @@ import {
   Film,
   Layers,
   LayoutDashboard,
+  Link2,
   Lock,
   LogOut,
   Menu,
+  PanelBottom,
   Plus,
   Radio,
   Search,
@@ -54,6 +56,7 @@ import type {
   BandProfile,
   BandState,
   BuiltinSectionKey,
+  FooterLink,
   GalleryCategory,
   GalleryPhoto,
   SiteSection,
@@ -82,6 +85,7 @@ interface AdminDashboardProps {
 type AdminSection =
   | 'overview'
   | 'pages'
+  | 'footer'
   | 'profile'
   | 'tracks'
   | 'tours'
@@ -92,6 +96,7 @@ type AdminSection =
 const SECTION_LABELS: Record<AdminSection, string> = {
   overview: 'Ringkasan',
   pages: 'Halaman Website',
+  footer: 'Footer Website',
   profile: 'Profil & Personel',
   tracks: 'Musik & Audio',
   tours: 'Jadwal',
@@ -207,6 +212,16 @@ export function AdminDashboard({
     dateLabel: 'November 2026',
     photographer: 'Tim Rasmalas',
     featured: false,
+  });
+
+  // Footer custom links & channel add state
+  const [editingFooterLinkId, setEditingFooterLinkId] = useState<string | null>(null);
+  const [footerLinkForm, setFooterLinkForm] = useState({ label: '', url: '' });
+  const [newChannelForm, setNewChannelForm] = useState({
+    platform: '',
+    handle: '',
+    followersLabel: '',
+    url: '',
   });
 
   // Social state
@@ -605,6 +620,30 @@ export function AdminDashboard({
       );
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Gagal mengubah visibilitas.');
+    }
+  }
+
+  async function handleToggleSectionNav(sec: SiteSection) {
+    try {
+      if (backendMode === 'supabase') {
+        await sbUpsertSiteSection({ ...sec, showInNav: !sec.showInNav });
+      } else {
+        const res = await fetch(`/api/admin/sections/${sec.id}`, {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({ showInNav: !sec.showInNav }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal mengubah tampilan navigasi.');
+      }
+      await onRefreshState();
+      showNotice(
+        !sec.showInNav
+          ? `Link "${sec.navLabel}" ditampilkan di Navbar & Footer.`
+          : `Link "${sec.navLabel}" dihapus dari Navbar & Footer.`
+      );
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Gagal mengubah tampilan navigasi.');
     }
   }
 
@@ -1079,26 +1118,106 @@ export function AdminDashboard({
     }
   }
 
-  async function handleSaveChannels() {
+  async function saveChannelsList(nextChannels: SocialChannel[], successMsg: string) {
     setSaving(true);
     try {
       if (backendMode === 'supabase') {
-        await sbSaveSocialChannels(channelsForm);
+        await sbSaveSocialChannels(nextChannels);
       } else {
         const res = await fetch('/api/admin/social/channels', {
           method: 'PUT',
           headers: buildHeaders(),
-          body: JSON.stringify({ channels: channelsForm }),
+          body: JSON.stringify({ channels: nextChannels }),
         });
-        if (!res.ok) throw new Error('Gagal menyimpan kanal sosial.');
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyimpan kanal resmi.');
       }
+      setChannelsForm(nextChannels);
       await onRefreshState();
-      showNotice('Kanal media sosial diperbarui secara real-time.');
+      showNotice(successMsg);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Gagal memperbarui kanal.');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSaveChannels() {
+    await saveChannelsList(channelsForm, 'Kanal media sosial & footer diperbarui secara real-time.');
+  }
+
+  async function handleAddChannel(e: FormEvent) {
+    e.preventDefault();
+    const platformName = newChannelForm.platform.trim();
+    if (!platformName) {
+      showError('Nama kanal / platform wajib diisi (mis. Instagram, WhatsApp, SoundCloud).');
+      return;
+    }
+    const duplicate = channelsForm.some(
+      (c) => c.platform.toLowerCase() === platformName.toLowerCase()
+    );
+    if (duplicate) {
+      showError(`Kanal "${platformName}" sudah ada. Edit langsung di daftar.`);
+      return;
+    }
+    const created: SocialChannel = {
+      platform: platformName,
+      handle: newChannelForm.handle.trim() || `@${platformName.toLowerCase().replace(/\s+/g, '')}`,
+      followersLabel: newChannelForm.followersLabel.trim() || 'Kanal Resmi',
+      url: newChannelForm.url.trim() || 'https://instagram.com',
+      connected: true,
+    };
+    const next = [...channelsForm, created];
+    setNewChannelForm({ platform: '', handle: '', followersLabel: '', url: '' });
+    await saveChannelsList(next, `Kanal "${platformName}" berhasil ditambahkan.`);
+  }
+
+  async function handleDeleteChannel(platformName: string) {
+    const next = channelsForm.filter((c) => c.platform !== platformName);
+    await saveChannelsList(next, `Kanal "${platformName}" dihapus dari footer & media sosial.`);
+  }
+
+  function startEditFooterLink(link: FooterLink) {
+    setEditingFooterLinkId(link.id);
+    setFooterLinkForm({ label: link.label, url: link.url });
+  }
+
+  function resetFooterLinkForm() {
+    setEditingFooterLinkId(null);
+    setFooterLinkForm({ label: '', url: '' });
+  }
+
+  function handleSaveFooterLink(e: FormEvent) {
+    e.preventDefault();
+    const label = footerLinkForm.label.trim();
+    const url = footerLinkForm.url.trim();
+    if (!label || !url) {
+      showError('Label tautan dan URL tujuan wajib diisi.');
+      return;
+    }
+    const existingLinks = profileForm.footerLinks ?? [];
+    const nextLinks: FooterLink[] = editingFooterLinkId
+      ? existingLinks.map((l) =>
+          l.id === editingFooterLinkId ? { ...l, label, url } : l
+        )
+      : [...existingLinks, { id: `fl-${Date.now().toString(36)}`, label, url }];
+    const updatedProfile: BandProfile = { ...profileForm, footerLinks: nextLinks };
+    setProfileForm(updatedProfile);
+    resetFooterLinkForm();
+    void saveProfilePayload(
+      updatedProfile,
+      editingFooterLinkId
+        ? 'Tautan footer berhasil diperbarui.'
+        : 'Tautan footer baru berhasil ditambahkan.'
+    );
+  }
+
+  function handleDeleteFooterLink(id: string) {
+    const nextLinks = (profileForm.footerLinks ?? []).filter((l) => l.id !== id);
+    const updatedProfile: BandProfile = { ...profileForm, footerLinks: nextLinks };
+    setProfileForm(updatedProfile);
+    if (editingFooterLinkId === id) resetFooterLinkForm();
+    void saveProfilePayload(updatedProfile, 'Tautan footer dihapus.');
   }
 
   async function handlePublishSocialPost(e: FormEvent) {
@@ -1386,6 +1505,7 @@ export function AdminDashboard({
   const navItems: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
     { id: 'pages', label: 'Halaman Website', icon: Layers },
+    { id: 'footer', label: 'Footer Website', icon: PanelBottom },
     { id: 'profile', label: 'Profil & Personel', icon: User },
     { id: 'tracks', label: 'Musik & Audio', icon: Disc3 },
     { id: 'tours', label: 'Jadwal', icon: Calendar },
@@ -1603,9 +1723,16 @@ export function AdminDashboard({
                     <button
                       type="button"
                       onClick={() => setSection('pages')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#EAB308]/60 bg-[#0B0E0A] text-[#EAB308] hover:border-[#EAB308] cursor-pointer sm:col-span-2"
+                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#EAB308]/60 bg-[#0B0E0A] text-[#EAB308] hover:border-[#EAB308] cursor-pointer"
                     >
-                      + Atur, Tambah, Urutkan &amp; Edit Halaman Website
+                      + Atur &amp; Edit Halaman Website
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSection('footer')}
+                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#EAB308]/60 bg-[#0B0E0A] text-[#EAB308] hover:border-[#EAB308] cursor-pointer"
+                    >
+                      + Edit, Tambah &amp; Hapus Konten Footer
                     </button>
                     <button
                       type="button"
@@ -2198,6 +2325,518 @@ export function AdminDashboard({
                         </div>
                       </div>
                     ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 1C: FOOTER WEBSITE (EDIT, TAMBAH & HAPUS LENGKAP) */}
+          {section === 'footer' && (
+            <div className="space-y-8">
+              {/* 1. Branding, Deskripsi, Lokasi, Email & Hak Cipta Footer */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void saveProfilePayload(
+                    profileForm,
+                    'Konten footer website diperbarui secara real-time.'
+                  );
+                }}
+                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5"
+              >
+                <div>
+                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                    Pengaturan Teks, Logo &amp; Info Footer
+                  </h1>
+                  <p className="text-xs text-[#A8A092] mt-1">
+                    Edit atau kosongkan/hapus teks deskripsi, lokasi, email booking, logo, dan hak
+                    cipta di bagian bawah website.
+                  </p>
+                </div>
+
+                {/* Logo di Footer */}
+                <div className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-[#D6CFC2]">
+                      Logo Brand di Footer &amp; Navbar
+                    </span>
+                    {profileForm.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = { ...profileForm, logoUrl: undefined };
+                          setProfileForm(next);
+                          void saveProfilePayload(next, 'Logo gambar dihapus, menampilkan teks nama band.');
+                        }}
+                        className="text-xs text-[#FCA5A5] hover:underline cursor-pointer"
+                      >
+                        Hapus Logo Gambar
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    {profileForm.logoUrl ? (
+                      <div className="h-12 w-36 overflow-hidden rounded-lg border border-[#2A3024] bg-[#11150F] flex items-center justify-center">
+                        <img
+                          src={resolveAssetUrl(profileForm.logoUrl)}
+                          alt={profileForm.name}
+                          className="h-full w-full object-cover object-center scale-[1.15]"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-sm font-display font-bold text-[#F5F2EB] px-3 py-2 rounded-lg border border-[#2A3024] bg-[#11150F]">
+                        {profileForm.name} (Teks)
+                      </span>
+                    )}
+                    <label className="inline-flex items-center gap-2 min-h-[38px] px-3.5 py-2 text-xs font-semibold bg-[#1A2016] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
+                      {uploadingTarget === 'logo' ? 'Mengunggah Logo...' : 'Ganti / Unggah Logo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingTarget === 'logo'}
+                        onChange={handleLogoUpload}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Deskripsi Footer */}
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-xs font-medium text-[#D6CFC2]">
+                      Deskripsi Singkat di Footer
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProfileForm({
+                            ...profileForm,
+                            footerDescription: `${profileForm.footerNote ? `${profileForm.footerNote} — ` : ''}${profileForm.subheadline}`,
+                          })
+                        }
+                        className="text-[11px] text-[#EAB308] hover:underline cursor-pointer"
+                      >
+                        Isi dari Subjudul
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProfileForm({ ...profileForm, footerDescription: '' })
+                        }
+                        className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                      >
+                        Hapus Deskripsi
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={
+                      profileForm.footerDescription !== undefined
+                        ? profileForm.footerDescription
+                        : `${profileForm.footerNote ? `${profileForm.footerNote} — ` : ''}${profileForm.subheadline}`
+                    }
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, footerDescription: e.target.value })
+                    }
+                    placeholder="Kosongkan bila tidak ingin menampilkan deskripsi di footer..."
+                    className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Lokasi */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-medium text-[#D6CFC2]">
+                        Lokasi / Kota Basis
+                      </label>
+                      {profileForm.originCity && (
+                        <button
+                          type="button"
+                          onClick={() => setProfileForm({ ...profileForm, originCity: '' })}
+                          className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={profileForm.originCity}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, originCity: e.target.value })
+                      }
+                      placeholder="Contoh: Denpasar & Yogyakarta"
+                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  {/* Email Booking */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-medium text-[#D6CFC2]">
+                        Email Kontak / Booking
+                      </label>
+                      {profileForm.bookingEmail && (
+                        <button
+                          type="button"
+                          onClick={() => setProfileForm({ ...profileForm, bookingEmail: '' })}
+                          className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={profileForm.bookingEmail}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, bookingEmail: e.target.value })
+                      }
+                      placeholder="Contoh: booking@rasmalas.id"
+                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+                </div>
+
+                {/* Hak Cipta Bawah */}
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-xs font-medium text-[#D6CFC2]">
+                      Teks Hak Cipta Bawah (Copyright)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProfileForm({
+                            ...profileForm,
+                            footerCopyright: `© ${new Date().getFullYear()} ${profileForm.name}. ${profileForm.footerNote || 'Roots Reggae & Analog Dub'}.`,
+                          })
+                        }
+                        className="text-[11px] text-[#EAB308] hover:underline cursor-pointer"
+                      >
+                        Isi Default
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProfileForm({ ...profileForm, footerCopyright: '' })
+                        }
+                        className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                      >
+                        Hapus Hak Cipta
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={
+                      profileForm.footerCopyright !== undefined
+                        ? profileForm.footerCopyright
+                        : `© ${new Date().getFullYear()} ${profileForm.name}. ${profileForm.footerNote || 'Roots Reggae & Analog Dub'}.`
+                    }
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, footerCopyright: e.target.value })
+                    }
+                    placeholder="Contoh: © 2026 Rasmalas. Roots Reggae & Analog Dub."
+                    className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" aria-hidden="true" />
+                  {saving ? 'Menyimpan...' : 'Simpan Pengaturan Teks Footer'}
+                </button>
+              </form>
+
+              {/* 2. Kolom Navigasi Footer (Toggle Halaman & Tambah/Edit/Hapus Tautan Kustom) */}
+              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
+                      Kolom Navigasi Footer (Tambah, Edit &amp; Hapus Tautan)
+                    </h2>
+                    <p className="text-xs text-[#A8A092] mt-0.5">
+                      Atur tautan bagian halaman yang tampil di footer atau tambahkan link kustom
+                      baru (mis. Press Kit, WhatsApp, Merch).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSection('pages')}
+                    className="text-xs text-[#EAB308] hover:underline cursor-pointer"
+                  >
+                    Kelola Halaman Website →
+                  </button>
+                </div>
+
+                {/* Toggle navigasi bagian bawaan */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-[#D6CFC2]">
+                    Tautan Bagian Halaman Otomatis:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[...(bandState.siteSections ?? [])]
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((sec) => (
+                        <button
+                          key={sec.id}
+                          type="button"
+                          onClick={() => void handleToggleSectionNav(sec)}
+                          className={`inline-flex items-center gap-2 min-h-[36px] px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer ${
+                            sec.showInNav && sec.visible
+                              ? 'border-[#EAB308]/60 bg-[#292310]/60 text-[#F5F2EB]'
+                              : 'border-[#2A3024] bg-[#090B08] text-[#787166]'
+                          }`}
+                        >
+                          {sec.showInNav && sec.visible ? (
+                            <Eye className="w-3.5 h-3.5 text-[#4ADE80]" />
+                          ) : (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          )}
+                          <span>{sec.navLabel}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Form Tambah / Edit Link Footer Kustom */}
+                <form
+                  onSubmit={handleSaveFooterLink}
+                  className="pt-4 border-t border-[#2A3024] space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-[#D6CFC2]">
+                      {editingFooterLinkId
+                        ? 'Edit Tautan Footer Kustom'
+                        : 'Tambah Tautan Footer Kustom Baru'}
+                    </p>
+                    {editingFooterLinkId && (
+                      <button
+                        type="button"
+                        onClick={resetFooterLinkForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                      >
+                        Batal Edit
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <input
+                      type="text"
+                      required
+                      value={footerLinkForm.label}
+                      onChange={(e) =>
+                        setFooterLinkForm({ ...footerLinkForm, label: e.target.value })
+                      }
+                      placeholder="Label Tautan (mis. Press Kit / WhatsApp)"
+                      className="sm:col-span-4 min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                    <input
+                      type="text"
+                      required
+                      value={footerLinkForm.url}
+                      onChange={(e) =>
+                        setFooterLinkForm({ ...footerLinkForm, url: e.target.value })
+                      }
+                      placeholder="URL Tujuan (#jadwal, https://..., mailto:...)"
+                      className="sm:col-span-5 min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="sm:col-span-3 inline-flex items-center justify-center gap-2 min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    >
+                      {editingFooterLinkId ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Link2 className="w-4 h-4" />
+                      )}
+                      {editingFooterLinkId ? 'Simpan Tautan' : 'Tambah Tautan'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Daftar Link Footer Kustom */}
+                <div className="space-y-2">
+                  {(profileForm.footerLinks ?? []).length === 0 ? (
+                    <p className="text-xs text-[#787166]">
+                      Belum ada tautan footer kustom tambahan. Gunakan form di atas untuk
+                      menambahkannya.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-[#2A3024] rounded-xl border border-[#2A3024] bg-[#090B08] overflow-hidden">
+                      {(profileForm.footerLinks ?? []).map((link) => (
+                        <div
+                          key={link.id}
+                          className="px-4 py-3 flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#F5F2EB] truncate">
+                              {link.label}
+                            </p>
+                            <p className="text-xs font-mono text-[#A8A092] truncate">
+                              {link.url}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => startEditFooterLink(link)}
+                              aria-label={`Edit tautan ${link.label}`}
+                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFooterLink(link.id)}
+                              aria-label={`Hapus tautan ${link.label}`}
+                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Kontak & Kanal Resmi Footer (Tambah, Edit & Hapus Kanal) */}
+              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
+                      Kontak &amp; Kanal Resmi di Footer
+                    </h2>
+                    <p className="text-xs text-[#A8A092] mt-0.5">
+                      Tambah kanal baru (mis. WhatsApp, Bandcamp, SoundCloud), ubah URL, aktifkan/nonaktifkan, atau hapus kanal dari footer.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveChannels}
+                    disabled={saving}
+                    className="min-h-[38px] px-4 py-1.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                  >
+                    Simpan Perubahan Kanal
+                  </button>
+                </div>
+
+                {/* Form Tambah Kanal Baru */}
+                <form
+                  onSubmit={handleAddChannel}
+                  className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3"
+                >
+                  <p className="text-xs font-semibold text-[#D6CFC2]">
+                    + Tambah Kanal / Kontak Resmi Baru
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5">
+                    <input
+                      type="text"
+                      required
+                      value={newChannelForm.platform}
+                      onChange={(e) =>
+                        setNewChannelForm({ ...newChannelForm, platform: e.target.value })
+                      }
+                      placeholder="Nama Kanal (mis. WhatsApp)"
+                      className="lg:col-span-3 min-h-[38px] px-3 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                    <input
+                      type="text"
+                      value={newChannelForm.handle}
+                      onChange={(e) =>
+                        setNewChannelForm({ ...newChannelForm, handle: e.target.value })
+                      }
+                      placeholder="Handle / Label (opsional)"
+                      className="lg:col-span-3 min-h-[38px] px-3 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                    <input
+                      type="url"
+                      required
+                      value={newChannelForm.url}
+                      onChange={(e) =>
+                        setNewChannelForm({ ...newChannelForm, url: e.target.value })
+                      }
+                      placeholder="URL (https://...)"
+                      className="lg:col-span-4 min-h-[38px] px-3 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="lg:col-span-2 inline-flex items-center justify-center gap-1.5 min-h-[38px] px-3 text-xs font-semibold bg-[#1A2016] border border-[#EAB308]/60 text-[#EAB308] rounded-lg hover:bg-[#EAB308] hover:text-[#090B08] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Tambah
+                    </button>
+                  </div>
+                </form>
+
+                {/* Daftar Kanal dengan Edit & Hapus */}
+                <div className="space-y-3">
+                  {channelsForm.map((ch, idx) => (
+                    <div
+                      key={ch.platform}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center rounded-xl border border-[#2A3024] bg-[#090B08] p-3"
+                    >
+                      <label className="sm:col-span-3 flex items-center gap-2 text-xs font-semibold text-[#F5F2EB] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={ch.connected}
+                          onChange={(e) => {
+                            const next = [...channelsForm];
+                            next[idx] = { ...ch, connected: e.target.checked };
+                            setChannelsForm(next);
+                          }}
+                          className="accent-[#EAB308]"
+                        />
+                        <span className="truncate">{ch.platform}</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={ch.handle}
+                        onChange={(e) => {
+                          const next = [...channelsForm];
+                          next[idx] = { ...ch, handle: e.target.value };
+                          setChannelsForm(next);
+                        }}
+                        placeholder="Handle / Username"
+                        className="sm:col-span-3 min-h-[38px] px-2.5 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      <input
+                        type="url"
+                        value={ch.url}
+                        onChange={(e) => {
+                          const next = [...channelsForm];
+                          next[idx] = { ...ch, url: e.target.value };
+                          setChannelsForm(next);
+                        }}
+                        placeholder="URL Tujuan"
+                        className="sm:col-span-5 min-h-[38px] px-2.5 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      <div className="sm:col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteChannel(ch.platform)}
+                          aria-label={`Hapus kanal ${ch.platform}`}
+                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -3189,10 +3828,14 @@ export function AdminDashboard({
                     onChange={(e) => setPostPlatform(e.target.value as SocialPlatform)}
                     className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   >
-                    <option value="Instagram">Instagram</option>
-                    <option value="YouTube">YouTube</option>
-                    <option value="Spotify">Spotify</option>
-                    <option value="TikTok">TikTok</option>
+                    {(channelsForm.length > 0
+                      ? channelsForm.map((c) => c.platform)
+                      : ['Instagram', 'YouTube', 'Spotify', 'TikTok']
+                    ).map((plat) => (
+                      <option key={plat} value={plat}>
+                        {plat}
+                      </option>
+                    ))}
                   </select>
                   <div className="flex items-center gap-2 min-h-[40px] px-3 bg-[#090B08] border border-[#2A3024] rounded-lg">
                     <label className="inline-flex items-center gap-2 text-xs font-medium text-[#EAB308] cursor-pointer">
@@ -3304,7 +3947,7 @@ export function AdminDashboard({
                           }}
                           className="accent-[#EAB308]"
                         />
-                        {ch.platform}
+                        <span className="truncate">{ch.platform}</span>
                       </label>
                       <input
                         type="text"
@@ -3337,8 +3980,18 @@ export function AdminDashboard({
                           setChannelsForm(next);
                         }}
                         placeholder="URL Profil"
-                        className="sm:col-span-4 min-h-[38px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                        className="sm:col-span-3 min-h-[38px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                       />
+                      <div className="sm:col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteChannel(ch.platform)}
+                          aria-label={`Hapus kanal ${ch.platform}`}
+                          className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

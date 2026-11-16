@@ -21,6 +21,10 @@ export const DEFAULT_STATE: BandState = {
     heroCardKicker: 'Jadwal Panggung Nusantara',
     heroCardTitle: 'Sesi Panggung Terbuka & 12-Stack Sound System',
     footerNote: 'Roots Reggae & Analog Dub',
+    footerDescription:
+      'Kolektif roots reggae dan dub analog yang memadukan ritem one-drop Jamaika dengan kisah tropis Nusantara, instrumen tiup langsung, serta rekaman pita reel-to-reel.',
+    footerCopyright: '© 2026 Rasmalas. Roots Reggae & Analog Dub.',
+    footerLinks: [],
     stats: [
       { label: 'Tahun Berkarya', value: '14 Tahun' },
       { label: 'Album Studio', value: '4 Rilisan' },

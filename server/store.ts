@@ -100,6 +100,9 @@ async function seedSupabaseFromState(state: BandState): Promise<void> {
       hero_card_title:
         state.profile.heroCardTitle ?? 'Sesi Panggung Terbuka & 12-Stack Sound System',
       footer_note: state.profile.footerNote ?? 'Roots Reggae & Analog Dub',
+      footer_description: state.profile.footerDescription ?? null,
+      footer_copyright: state.profile.footerCopyright ?? null,
+      footer_links: state.profile.footerLinks ?? [],
       stats: state.profile.stats,
       updated_at: new Date().toISOString(),
     },
@@ -328,6 +331,9 @@ export async function initStore(): Promise<void> {
         heroCardKicker: p.hero_card_kicker ?? DEFAULT_STATE.profile.heroCardKicker,
         heroCardTitle: p.hero_card_title ?? DEFAULT_STATE.profile.heroCardTitle,
         footerNote: p.footer_note ?? DEFAULT_STATE.profile.footerNote,
+        footerDescription: p.footer_description ?? undefined,
+        footerCopyright: p.footer_copyright ?? undefined,
+        footerLinks: Array.isArray(p.footer_links) ? p.footer_links : [],
         stats: Array.isArray(p.stats) ? p.stats : DEFAULT_STATE.profile.stats,
         members: (membersRes.data ?? []).map((m) => ({
           id: m.id,
@@ -441,6 +447,9 @@ export async function dbSaveProfileAndMembers(
       hero_card_title:
         profile.heroCardTitle ?? 'Sesi Panggung Terbuka & 12-Stack Sound System',
       footer_note: profile.footerNote ?? 'Roots Reggae & Analog Dub',
+      footer_description: profile.footerDescription ?? null,
+      footer_copyright: profile.footerCopyright ?? null,
+      footer_links: profile.footerLinks ?? [],
       stats: profile.stats,
       updated_at: new Date().toISOString(),
     },
@@ -585,18 +594,39 @@ export async function dbSaveSocialChannels(
 ): Promise<void> {
   const client = getSupabaseAdminClient(sbToken);
   if (!client) return;
-  const { error } = await client.from('social_channels').upsert(
-    channels.map((c, idx) => ({
-      platform: c.platform,
-      handle: c.handle,
-      url: c.url,
-      followers_label: c.followersLabel,
-      connected: c.connected,
-      sort_order: idx,
-    })),
-    { onConflict: 'platform' }
-  );
-  if (error) throw new Error(error.message);
+
+  const { data: existing, error: fetchErr } = await client
+    .from('social_channels')
+    .select('platform');
+  if (fetchErr) throw new Error(fetchErr.message);
+
+  const keepPlatforms = new Set(channels.map((c) => c.platform));
+  const toDelete = (existing ?? [])
+    .map((r) => r.platform as string)
+    .filter((p) => !keepPlatforms.has(p));
+
+  if (toDelete.length > 0) {
+    const { error: delErr } = await client
+      .from('social_channels')
+      .delete()
+      .in('platform', toDelete);
+    if (delErr) throw new Error(delErr.message);
+  }
+
+  if (channels.length > 0) {
+    const { error } = await client.from('social_channels').upsert(
+      channels.map((c, idx) => ({
+        platform: c.platform,
+        handle: c.handle,
+        url: c.url,
+        followers_label: c.followersLabel,
+        connected: c.connected,
+        sort_order: idx,
+      })),
+      { onConflict: 'platform' }
+    );
+    if (error) throw new Error(error.message);
+  }
 }
 
 export async function dbInsertSocialPost(post: SocialPost, sbToken?: string): Promise<void> {

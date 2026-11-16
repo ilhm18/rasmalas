@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { BandProfileSection } from './components/BandProfileSection';
 import { CustomSectionBlock } from './components/CustomSectionBlock';
+import { Footer } from './components/Footer';
 import { GallerySection } from './components/GallerySection';
 import { HeroSection } from './components/HeroSection';
 import { MusicPlayerSection } from './components/MusicPlayerSection';
@@ -423,7 +424,7 @@ export default function App() {
           onRefreshState={refetch}
         />
       ) : (
-        <div className="pb-16">
+        <div className={!miniDismissed && currentTrack ? 'pb-16' : ''}>
           {(() => {
             const visibleSections: SiteSection[] = [...(bandState.siteSections ?? [])]
               .filter((s) => s.visible)
@@ -534,51 +535,11 @@ export default function App() {
                   })}
                 </main>
 
-                <footer className="border-t border-[#2A3024] bg-[#090C08]/75 backdrop-blur-md py-10">
-                  <div className="mx-auto max-w-[1200px] px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-[#A8A092]">
-                    <div className="flex flex-wrap items-center gap-3">
-                      {bandState.profile.logoUrl ? (
-                        <span className="inline-block h-8 w-28 overflow-hidden">
-                          <img
-                            src={resolveAssetUrl(bandState.profile.logoUrl)}
-                            alt={bandState.profile.name}
-                            className="h-full w-full object-cover object-center scale-[1.15]"
-                          />
-                        </span>
-                      ) : (
-                        <span className="font-display text-sm font-bold text-[#F5F2EB]">
-                          {bandState.profile.name}
-                        </span>
-                      )}
-                      <span aria-hidden="true">·</span>
-                      <span>{bandState.profile.originCity}</span>
-                      {bandState.profile.footerNote && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span>{bandState.profile.footerNote}</span>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-5">
-                      {footerLinks.map((sec) => (
-                        <a
-                          key={sec.id}
-                          href={`#${sec.slug}`}
-                          className="hover:text-[#F5F2EB]"
-                        >
-                          {sec.navLabel}
-                        </a>
-                      ))}
-                      <a
-                        href={`mailto:${bandState.profile.bookingEmail}`}
-                        className="hover:text-[#EAB308]"
-                      >
-                        {bandState.profile.bookingEmail}
-                      </a>
-                    </div>
-                  </div>
-                </footer>
+                <Footer
+                  profile={bandState.profile}
+                  links={footerLinks}
+                  channels={bandState.socialChannels}
+                />
               </>
             );
           })()}

@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS public.band_profile (
   hero_card_kicker TEXT NOT NULL DEFAULT 'Jadwal Panggung Nusantara',
   hero_card_title TEXT NOT NULL DEFAULT 'Sesi Panggung Terbuka & 12-Stack Sound System',
   footer_note TEXT NOT NULL DEFAULT 'Roots Reggae & Analog Dub',
+  footer_description TEXT,
+  footer_copyright TEXT,
+  footer_links JSONB NOT NULL DEFAULT '[]'::jsonb,
   stats JSONB NOT NULL DEFAULT '[]'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -45,6 +48,9 @@ ALTER TABLE public.band_profile
   ADD COLUMN IF NOT EXISTS hero_card_kicker TEXT NOT NULL DEFAULT 'Jadwal Panggung Nusantara',
   ADD COLUMN IF NOT EXISTS hero_card_title TEXT NOT NULL DEFAULT 'Sesi Panggung Terbuka & 12-Stack Sound System',
   ADD COLUMN IF NOT EXISTS footer_note TEXT NOT NULL DEFAULT 'Roots Reggae & Analog Dub',
+  ADD COLUMN IF NOT EXISTS footer_description TEXT,
+  ADD COLUMN IF NOT EXISTS footer_copyright TEXT,
+  ADD COLUMN IF NOT EXISTS footer_links JSONB NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS stats JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 2B. Manajemen Halaman & Bagian Website (Atur, Edit, Tambah, Urutkan, Hapus)
@@ -150,9 +156,9 @@ CREATE TABLE IF NOT EXISTS public.gallery_photos (
 ALTER TABLE public.gallery_photos
   ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video'));
 
--- 7. Kanal Media Sosial
+-- 7. Kanal Media Sosial & Footer (Bebas Tambah, Edit, Hapus Kanal Apa Saja)
 CREATE TABLE IF NOT EXISTS public.social_channels (
-  platform TEXT PRIMARY KEY CHECK (platform IN ('Instagram', 'YouTube', 'Spotify', 'TikTok')),
+  platform TEXT PRIMARY KEY,
   handle TEXT NOT NULL,
   url TEXT NOT NULL DEFAULT '',
   followers_label TEXT NOT NULL DEFAULT '',
@@ -160,10 +166,13 @@ CREATE TABLE IF NOT EXISTS public.social_channels (
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
+ALTER TABLE public.social_channels
+  DROP CONSTRAINT IF EXISTS social_channels_platform_check;
+
 -- 8. Postingan Feed Sosial Real-Time
 CREATE TABLE IF NOT EXISTS public.social_posts (
   id TEXT PRIMARY KEY,
-  platform TEXT NOT NULL CHECK (platform IN ('Instagram', 'YouTube', 'Spotify', 'TikTok')),
+  platform TEXT NOT NULL,
   author_handle TEXT NOT NULL,
   content TEXT NOT NULL,
   media_url TEXT,
@@ -172,6 +181,9 @@ CREATE TABLE IF NOT EXISTS public.social_posts (
   likes INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.social_posts
+  DROP CONSTRAINT IF EXISTS social_posts_platform_check;
 
 ALTER TABLE public.social_posts
   ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video'));

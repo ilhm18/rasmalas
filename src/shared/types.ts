@@ -2,7 +2,13 @@ export type TourStatus = 'Tersedia' | 'Terbatas' | 'Habis' | 'Selesai';
 
 export type GalleryCategory = 'Panggung' | 'Studio' | 'Backstage';
 
-export type SocialPlatform = 'Instagram' | 'YouTube' | 'Spotify' | 'TikTok';
+export type SocialPlatform = string;
+
+export interface FooterLink {
+  id: string;
+  label: string;
+  url: string;
+}
 
 export interface BandMember {
   id: string;
@@ -55,6 +61,9 @@ export interface BandProfile {
   heroCardKicker?: string;
   heroCardTitle?: string;
   footerNote?: string;
+  footerDescription?: string;
+  footerCopyright?: string;
+  footerLinks?: FooterLink[];
   stats: BandStat[];
   members: BandMember[];
 }

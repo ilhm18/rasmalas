@@ -510,6 +510,20 @@ async function startServer(): Promise<void> {
       current.heroCardTitle = body.heroCardTitle.trim().slice(0, 120);
     if (typeof body.footerNote === 'string')
       current.footerNote = body.footerNote.trim().slice(0, 140);
+    if (typeof body.footerDescription === 'string')
+      current.footerDescription = body.footerDescription.trim().slice(0, 400);
+    if (typeof body.footerCopyright === 'string')
+      current.footerCopyright = body.footerCopyright.trim().slice(0, 160);
+    if (Array.isArray(body.footerLinks)) {
+      current.footerLinks = body.footerLinks
+        .slice(0, 20)
+        .filter((l) => l && typeof l.label === 'string' && l.label.trim())
+        .map((l, idx) => ({
+          id: String(l.id || `fl-${idx + 1}`).slice(0, 40),
+          label: String(l.label).trim().slice(0, 60),
+          url: String(l.url ?? '#top').trim().slice(0, 300) || '#top',
+        }));
+    }
     if (Array.isArray(body.stats)) {
       current.stats = body.stats.slice(0, 4).map((s) => ({
         label: String(s.label ?? '').slice(0, 40),
@@ -1102,16 +1116,11 @@ async function startServer(): Promise<void> {
       res.status(400).json({ error: 'Format kanal media sosial tidak valid.' });
       return;
     }
-    const allowedPlatforms: SocialPlatform[] = [
-      'Instagram',
-      'YouTube',
-      'Spotify',
-      'TikTok',
-    ];
     const sanitized: SocialChannel[] = channels
-      .filter((c) => allowedPlatforms.includes(c.platform))
+      .filter((c) => c && typeof c.platform === 'string' && c.platform.trim())
+      .slice(0, 20)
       .map((c) => ({
-        platform: c.platform,
+        platform: String(c.platform).trim().slice(0, 40),
         handle: String(c.handle ?? '').trim().slice(0, 60),
         url: String(c.url ?? '').trim().slice(0, 300),
         followersLabel: String(c.followersLabel ?? '').trim().slice(0, 40),
@@ -1152,15 +1161,8 @@ async function startServer(): Promise<void> {
       res.status(400).json({ error: 'Konten pembaruan sosial wajib diisi.' });
       return;
     }
-    const allowedPlatforms: SocialPlatform[] = [
-      'Instagram',
-      'YouTube',
-      'Spotify',
-      'TikTok',
-    ];
-    const platform = allowedPlatforms.includes(body.platform as SocialPlatform)
-      ? (body.platform as SocialPlatform)
-      : 'Instagram';
+    const platform: SocialPlatform =
+      String(body.platform ?? '').trim().slice(0, 40) || 'Instagram';
 
     const channel = getState().socialChannels.find((c) => c.platform === platform);
     const newPost: SocialPost = {
