@@ -21,7 +21,6 @@ import {
   Menu,
   PanelBottom,
   Plus,
-  Radio,
   Search,
   Settings,
   Share2,
@@ -312,7 +311,7 @@ export function AdminDashboard({
       }
       if (backendMode === 'static') {
         throw new Error(
-          'Upload file membutuhkan koneksi Supabase (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY).'
+          'Upload file membutuhkan koneksi database dan penyimpanan media yang aktif.'
         );
       }
       const headers: Record<string, string> = {
@@ -371,7 +370,7 @@ export function AdminDashboard({
       }
       if (backendMode === 'static') {
         throw new Error(
-          'Hosting statis (Vercel / GitHub Pages) belum terhubung ke Supabase. Tambahkan VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY di Environment Variables, lalu lakukan Redeploy.'
+          'Server database belum terhubung pada deployment statis ini. Periksa konfigurasi environment variables lalu lakukan redeploy.'
         );
       }
       const res = await fetch('/api/auth/login', {
@@ -406,7 +405,7 @@ export function AdminDashboard({
     try {
       if (backendMode !== 'supabase') {
         throw new Error(
-          'Reset kata sandi via email tersedia saat terhubung ke Supabase. Pada mode server lokal, login lalu ubah kata sandi di menu Pengaturan.'
+          'Reset kata sandi via email hanya tersedia saat terhubung ke server cloud. Pada mode server lokal, login lalu ubah kata sandi di menu Pengaturan.'
         );
       }
       const res = await sbSendPasswordResetEmail(resetLoginInput);
@@ -442,7 +441,7 @@ export function AdminDashboard({
       if (backendMode === 'supabase') {
         await sbUpdateAdminPassword(passwordForm.newPassword);
       } else if (backendMode === 'static') {
-        throw new Error('Mode statis membutuhkan koneksi Supabase untuk reset kata sandi.');
+        throw new Error('Mode statis membutuhkan koneksi database untuk reset kata sandi.');
       } else {
         const res = await fetch('/api/admin/account/password', {
           method: 'PUT',
@@ -1690,18 +1689,6 @@ export function AdminDashboard({
                 </form>
               )}
 
-              {backendMode === 'static' && (
-                <div className="border-t border-[#2A3024] pt-4 text-xs text-[#A8A092] space-y-1">
-                  <p>Mode Hosting Statis (Vercel / GitHub Pages):</p>
-                  <p className="text-[#D6CFC2]">
-                    Tambahkan Environment Variables{' '}
-                    <span className="font-mono">VITE_SUPABASE_URL</span> &amp;{' '}
-                    <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di Vercel (lalu
-                    Redeploy) atau di GitHub Actions Variables untuk mengaktifkan login &amp;
-                    edit admin.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </main>
@@ -1710,20 +1697,36 @@ export function AdminDashboard({
   }
 
   // 2. Full-Featured Authenticated Admin Dashboard
-  const navItems: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] = [
-    { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
-    { id: 'pages', label: 'Halaman Website', icon: Layers },
-    { id: 'footer', label: 'Footer Website', icon: PanelBottom },
-    { id: 'profile', label: 'Profil & Personel', icon: User },
-    { id: 'tracks', label: 'Musik & Audio', icon: Disc3 },
-    { id: 'tours', label: 'Jadwal', icon: Calendar },
-    { id: 'gallery', label: 'Galeri Foto & Video', icon: Camera },
-    { id: 'social', label: 'Media Sosial', icon: Share2 },
-    { id: 'settings', label: 'Pengaturan', icon: Settings },
+  const navGroups: {
+    group: string;
+    items: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[];
+  }[] = [
+    {
+      group: 'Utama',
+      items: [{ id: 'overview', label: 'Ringkasan', icon: LayoutDashboard }],
+    },
+    {
+      group: 'Konten Band',
+      items: [
+        { id: 'profile', label: 'Profil & Personel', icon: User },
+        { id: 'tracks', label: 'Musik & Audio', icon: Disc3 },
+        { id: 'tours', label: 'Jadwal Panggung', icon: Calendar },
+        { id: 'gallery', label: 'Galeri Media', icon: Camera },
+        { id: 'social', label: 'Media Sosial', icon: Share2 },
+      ],
+    },
+    {
+      group: 'Tampilan & Akun',
+      items: [
+        { id: 'pages', label: 'Halaman Website', icon: Layers },
+        { id: 'footer', label: 'Footer Website', icon: PanelBottom },
+        { id: 'settings', label: 'Pengaturan Akun', icon: Settings },
+      ],
+    },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#090B08]">
       {/* Mobile Sidebar Backdrop */}
       {sidebarOpen && (
         <div
@@ -1732,10 +1735,10 @@ export function AdminDashboard({
         />
       )}
 
-      {/* Left Sidebar (260px) */}
+      {/* Left Sidebar */}
       <aside
         aria-label="Navigasi dashboard admin"
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 shrink-0 border-r border-[#2A3024] bg-[#0B0E0A]/95 backdrop-blur-md flex flex-col transition-transform duration-200 ${
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 shrink-0 border-r border-[#2A3024] bg-[#0B0E0A] flex flex-col transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -1743,7 +1746,7 @@ export function AdminDashboard({
         <div className="px-5 py-4 border-b border-[#2A3024] flex items-center justify-between gap-2">
           <div className="min-w-0">
             {bandState.profile.logoUrl ? (
-              <span className="inline-block h-8 w-28 overflow-hidden">
+              <span className="inline-block h-7 w-24 overflow-hidden">
                 <img
                   src={resolveAssetUrl(bandState.profile.logoUrl)}
                   alt={bandState.profile.name}
@@ -1751,82 +1754,99 @@ export function AdminDashboard({
                 />
               </span>
             ) : (
-              <p className="font-display text-lg font-bold text-[#F5F2EB] truncate">
+              <p className="font-display text-base font-bold text-[#F5F2EB] truncate">
                 {bandState.profile.name}
               </p>
             )}
-            <p className="text-xs text-[#EAB308] mt-0.5">Dashboard Admin</p>
+            <p className="text-[11px] font-medium text-[#EAB308]">Dashboard Admin</p>
           </div>
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
             aria-label="Tutup sidebar"
-            className="lg:hidden min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F5F2EB]"
+            className="lg:hidden min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F5F2EB]"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = section === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setSection(item.id);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 min-h-[42px] px-3.5 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer text-left ${
-                  active
-                    ? 'bg-[#EAB308] text-[#090B08] font-semibold'
-                    : 'text-[#D6CFC2] hover:bg-[#161B14] hover:text-[#F5F2EB]'
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+          {navGroups.map((group) => (
+            <div key={group.group} className="space-y-1">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6E675B]">
+                {group.group}
+              </p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = section === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSection(item.id);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer text-left ${
+                      active
+                        ? 'bg-[#EAB308] text-[#090B08] font-semibold'
+                        : 'text-[#D6CFC2] hover:bg-[#161B14] hover:text-[#F5F2EB]'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-[#2A3024] space-y-2">
-          <button
-            type="button"
-            onClick={onBackToSite}
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-3 py-2 text-xs font-medium text-[#F5F2EB] border border-[#2A3024] bg-[#121610] rounded-lg hover:border-[#EAB308] cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-            Lihat Website Publik
-          </button>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-3 py-2 text-xs font-medium text-[#FCA5A5] border border-[#2A3024] rounded-lg hover:bg-[#2A1515] cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
-            Keluar Sesi
-          </button>
+        <div className="p-3 border-t border-[#2A3024] space-y-2 bg-[#090B08]/60">
+          <div className="px-2 py-1">
+            <p className="text-xs font-semibold text-[#F5F2EB] truncate">
+              {adminFullName || adminUsername || 'Admin'}
+            </p>
+            <p className="text-[11px] text-[#A8A092] truncate">
+              {adminEmail || 'admin@rasmalas.id'}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={onBackToSite}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[36px] px-2.5 text-xs font-medium text-[#F5F2EB] border border-[#2A3024] bg-[#121610] rounded-lg hover:border-[#EAB308] cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Website</span>
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[36px] px-2.5 text-xs font-medium text-[#FCA5A5] border border-[#2A3024] bg-[#121610] rounded-lg hover:bg-[#2A1515] cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Keluar</span>
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Dashboard Viewport */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-30 border-b border-[#2A3024] bg-[#0B0E0A]/85 backdrop-blur-md px-6 py-4 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 border-b border-[#2A3024] bg-[#0B0E0A]/90 backdrop-blur-md px-5 sm:px-8 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
               aria-label="Buka menu dashboard"
-              className="lg:hidden min-h-[40px] min-w-[40px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#F5F2EB]"
+              className="lg:hidden min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#F5F2EB]"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
             <div className="text-sm text-[#A8A092] truncate">
-              <span>Dashboard Admin</span>
-              <span className="mx-2" aria-hidden="true">
+              <span>Admin</span>
+              <span className="mx-2 text-[#4A5240]" aria-hidden="true">
                 /
               </span>
               <span className="font-semibold text-[#F5F2EB]">
@@ -1835,28 +1855,19 @@ export function AdminDashboard({
             </div>
           </div>
 
-          <div className="flex items-center gap-4 shrink-0">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-mono tabular-nums text-[#D6CFC2]">
-              <Radio
-                className={`w-3.5 h-3.5 ${wsConnected ? 'text-[#4ADE80]' : 'text-[#A8A092]'}`}
-                aria-hidden="true"
-              />
-              <span>{onlineCount} online</span>
-            </div>
-            <button
-              type="button"
-              onClick={onBackToSite}
-              className="min-h-[38px] px-3.5 py-1.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              Lihat Website
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onBackToSite}
+            className="min-h-[36px] px-3.5 py-1.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            Lihat Website
+          </button>
         </header>
 
         {(notice || errorMsg) && (
           <div
             role="status"
-            className={`px-6 py-3 text-xs font-medium border-b border-[#2A3024] ${
+            className={`px-6 py-2.5 text-xs font-medium border-b border-[#2A3024] ${
               errorMsg ? 'bg-[#2B1212] text-[#FCA5A5]' : 'bg-[#102819] text-[#86EFAC]'
             }`}
           >
@@ -1864,118 +1875,137 @@ export function AdminDashboard({
           </div>
         )}
 
-        <main className="flex-1 p-6 lg:p-8 max-w-6xl w-full space-y-8">
+        <main className="flex-1 p-5 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto space-y-6">
           {/* SECTION 1: OVERVIEW */}
           {section === 'overview' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div>
-                <h1 className="font-display text-2xl md:text-3xl font-bold text-[#F5F2EB]">
-                  Ringkasan Operasional Band
+                <h1 className="font-display text-xl md:text-2xl font-bold text-[#F5F2EB]">
+                  Ringkasan Konten Band
                 </h1>
-                <p className="text-sm text-[#A8A092] mt-1">
-                  Setiap perubahan di dashboard langsung tersinkronisasi secara real-time ke
-                  seluruh pengunjung website.
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Statistik konten aktif dan pintasan pengelolaan untuk {bandState.profile.name}.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-1">
-                  <p className="text-xs text-[#A8A092]">Total Lagu &amp; Pemutaran</p>
-                  <p className="font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
-                    {bandState.tracks.length} lagu
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <button
+                  type="button"
+                  onClick={() => setSection('tracks')}
+                  className="text-left rounded-xl border border-[#2A3024] bg-[#11150F] p-4 hover:border-[#EAB308]/50 transition-colors cursor-pointer"
+                >
+                  <p className="text-xs text-[#A8A092]">Lagu Streaming</p>
+                  <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
+                    {bandState.tracks.length}
                   </p>
-                  <p className="text-xs font-mono tabular-nums text-[#4ADE80]">
+                  <p className="mt-1 text-[11px] font-mono tabular-nums text-[#4ADE80]">
                     {totalPlays.toLocaleString('id-ID')} total putar
                   </p>
-                </div>
+                </button>
 
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setSection('tours')}
+                  className="text-left rounded-xl border border-[#2A3024] bg-[#11150F] p-4 hover:border-[#EAB308]/50 transition-colors cursor-pointer"
+                >
                   <p className="text-xs text-[#A8A092]">Jadwal Aktif</p>
-                  <p className="font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
-                    {upcomingTours.length} kota
+                  <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
+                    {upcomingTours.length}
                   </p>
-                  <p className="text-xs font-mono tabular-nums text-[#EAB308]">
-                    {bandState.tours.length} total jadwal panggung
+                  <p className="mt-1 text-[11px] font-mono tabular-nums text-[#EAB308]">
+                    Dari {bandState.tours.length} jadwal panggung
                   </p>
-                </div>
+                </button>
 
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-1">
-                  <p className="text-xs text-[#A8A092]">Arsip Galeri Foto</p>
-                  <p className="font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
-                    {bandState.gallery.length} foto
+                <button
+                  type="button"
+                  onClick={() => setSection('gallery')}
+                  className="text-left rounded-xl border border-[#2A3024] bg-[#11150F] p-4 hover:border-[#EAB308]/50 transition-colors cursor-pointer"
+                >
+                  <p className="text-xs text-[#A8A092]">Galeri Media</p>
+                  <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
+                    {bandState.gallery.length}
                   </p>
-                  <p className="text-xs text-[#D6CFC2]">
-                    {bandState.socialChannels.filter((c) => c.connected).length} kanal sosial aktif
+                  <p className="mt-1 text-[11px] text-[#D6CFC2]">
+                    Foto &amp; video dokumentasi
                   </p>
-                </div>
+                </button>
 
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-1">
-                  <p className="text-xs text-[#A8A092]">Interaksi Real-Time</p>
-                  <p className="font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
-                    {onlineCount} aktif
+                <button
+                  type="button"
+                  onClick={() => setSection('social')}
+                  className="text-left rounded-xl border border-[#2A3024] bg-[#11150F] p-4 hover:border-[#EAB308]/50 transition-colors cursor-pointer"
+                >
+                  <p className="text-xs text-[#A8A092]">Sosial &amp; Sapaan</p>
+                  <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-[#F5F2EB]">
+                    {bandState.socialPosts.length + bandState.shoutouts.length}
                   </p>
-                  <p className="text-xs font-mono tabular-nums text-[#D6CFC2]">
+                  <p className="mt-1 text-[11px] font-mono tabular-nums text-[#D6CFC2]">
                     {totalLikes.toLocaleString('id-ID')} suka · {bandState.shoutouts.length} sapaan
                   </p>
-                </div>
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
-                      Aksi Cepat Konten
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3.5">
+                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                    Pintasan Kelola Konten
+                  </h2>
+                  <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setSection('pages')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#EAB308]/60 bg-[#0B0E0A] text-[#EAB308] hover:border-[#EAB308] cursor-pointer"
+                      onClick={() => setSection('profile')}
+                      className="p-3 text-left rounded-lg border border-[#2A3024] bg-[#090B08] hover:border-[#EAB308] transition-colors cursor-pointer"
                     >
-                      + Atur &amp; Edit Halaman Website
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSection('footer')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#EAB308]/60 bg-[#0B0E0A] text-[#EAB308] hover:border-[#EAB308] cursor-pointer"
-                    >
-                      + Edit, Tambah &amp; Hapus Konten Footer
+                      <p className="text-xs font-semibold text-[#F5F2EB]">Profil &amp; Personel</p>
+                      <p className="text-[11px] text-[#A8A092] mt-0.5">Identitas, hero &amp; anggota</p>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSection('tracks')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#2A3024] bg-[#0B0E0A] text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                      className="p-3 text-left rounded-lg border border-[#2A3024] bg-[#090B08] hover:border-[#EAB308] transition-colors cursor-pointer"
                     >
-                      + Tambah Lagu Baru
+                      <p className="text-xs font-semibold text-[#F5F2EB]">Musik &amp; Audio</p>
+                      <p className="text-[11px] text-[#A8A092] mt-0.5">Unggah lagu &amp; lirik</p>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSection('tours')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#2A3024] bg-[#0B0E0A] text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                      className="p-3 text-left rounded-lg border border-[#2A3024] bg-[#090B08] hover:border-[#EAB308] transition-colors cursor-pointer"
                     >
-                      + Tambah Jadwal Baru
+                      <p className="text-xs font-semibold text-[#F5F2EB]">Jadwal Panggung</p>
+                      <p className="text-[11px] text-[#A8A092] mt-0.5">Kota, venue &amp; status</p>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSection('gallery')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#2A3024] bg-[#0B0E0A] text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                      className="p-3 text-left rounded-lg border border-[#2A3024] bg-[#090B08] hover:border-[#EAB308] transition-colors cursor-pointer"
                     >
-                      + Unggah Foto / Video Galeri
+                      <p className="text-xs font-semibold text-[#F5F2EB]">Galeri Media</p>
+                      <p className="text-[11px] text-[#A8A092] mt-0.5">Foto &amp; video panggung</p>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSection('social')}
-                      className="min-h-[44px] px-4 py-2 text-xs font-semibold text-left rounded-lg border border-[#2A3024] bg-[#0B0E0A] text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                      onClick={() => setSection('pages')}
+                      className="p-3 text-left rounded-lg border border-[#2A3024] bg-[#090B08] hover:border-[#EAB308] transition-colors cursor-pointer"
                     >
-                      + Siarkan Kabar Sosial
+                      <p className="text-xs font-semibold text-[#F5F2EB]">Halaman Website</p>
+                      <p className="text-[11px] text-[#A8A092] mt-0.5">Susunan &amp; seksi kustom</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSection('footer')}
+                      className="p-3 text-left rounded-lg border border-[#2A3024] bg-[#090B08] hover:border-[#EAB308] transition-colors cursor-pointer"
+                    >
+                      <p className="text-xs font-semibold text-[#F5F2EB]">Footer Website</p>
+                      <p className="text-[11px] text-[#A8A092] mt-0.5">Hak cipta &amp; tautan</p>
                     </button>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4">
+                <div className="rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
                       Jadwal Terdekat
                     </h2>
                     <button
@@ -1987,636 +2017,400 @@ export function AdminDashboard({
                     </button>
                   </div>
                   <div className="divide-y divide-[#2A3024]">
-                    {upcomingTours.slice(0, 3).map((t) => (
-                      <div key={t.id} className="py-2.5 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-[#F5F2EB] truncate">
-                            {t.venue}
-                          </p>
-                          <p className="text-xs text-[#A8A092]">
-                            {t.city} · <span className="font-mono">{t.date}</span>
-                          </p>
+                    {upcomingTours.length === 0 ? (
+                      <p className="py-4 text-xs text-[#A8A092]">
+                        Belum ada jadwal aktif terdekat.
+                      </p>
+                    ) : (
+                      upcomingTours.slice(0, 4).map((t) => (
+                        <div key={t.id} className="py-2.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-[#F5F2EB] truncate">
+                              {t.venue}
+                            </p>
+                            <p className="text-[11px] text-[#A8A092]">
+                              {t.city} · <span className="font-mono">{t.date}</span>
+                            </p>
+                          </div>
+                          <span className="text-xs font-medium text-[#EAB308] shrink-0">
+                            {t.status}
+                          </span>
                         </div>
-                        <span className="text-xs font-medium text-[#EAB308] shrink-0">
-                          {t.status}
-                        </span>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* SECTION 1B: HALAMAN WEBSITE (ATUR, EDIT, TAMBAH, URUTKAN, HAPUS) */}
+          {/* SECTION 1B: HALAMAN WEBSITE */}
           {section === 'pages' && (
-            <div className="space-y-8">
-              {/* 1. Pengaturan Hero, Foto Utama & Footer Website */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void saveProfilePayload(
-                    profileForm,
-                    'Tampilan Hero, foto utama & footer website diperbarui.'
-                  );
-                }}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5"
-              >
-                <div>
-                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                    Pengaturan Hero, Foto Utama &amp; Footer Website
-                  </h1>
-                  <p className="text-xs text-[#A8A092] mt-1">
-                    Atur tombol aksi di bagian atas halaman, foto panggung hero, foto studio,
-                    serta catatan kaki website.
-                  </p>
-                </div>
+            <div className="space-y-6">
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Struktur &amp; Bagian Halaman Website
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Atur urutan tampil, sembunyikan bagian, atau tambahkan bagian kustom baru di halaman utama.
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3">
-                    <p className="text-xs font-semibold text-[#D6CFC2]">Foto Utama Hero</p>
-                    <div className="flex items-center gap-4">
-                      {profileForm.heroImage && (
-                        <img
-                          src={resolveAssetUrl(profileForm.heroImage)}
-                          alt="Foto Hero"
-                          className="h-16 w-24 rounded-lg object-cover border border-[#2A3024] shrink-0"
-                        />
-                      )}
-                      <label className="inline-flex items-center gap-2 min-h-[38px] px-3.5 py-2 text-xs font-semibold bg-[#1A2016] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
-                        <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
-                        {uploadingTarget === 'hero'
-                          ? 'Mengunggah...'
-                          : 'Unggah Foto Hero'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          disabled={uploadingTarget === 'hero'}
-                          onChange={handleHeroImageUpload}
-                          className="sr-only"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3">
-                    <p className="text-xs font-semibold text-[#D6CFC2]">Foto Studio Profil</p>
-                    <div className="flex items-center gap-4">
-                      {profileForm.studioImage && (
-                        <img
-                          src={resolveAssetUrl(profileForm.studioImage)}
-                          alt="Foto Studio"
-                          className="h-16 w-24 rounded-lg object-cover border border-[#2A3024] shrink-0"
-                        />
-                      )}
-                      <label className="inline-flex items-center gap-2 min-h-[38px] px-3.5 py-2 text-xs font-semibold bg-[#1A2016] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
-                        <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
-                        {uploadingTarget === 'studio'
-                          ? 'Mengunggah...'
-                          : 'Unggah Foto Studio'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          disabled={uploadingTarget === 'studio'}
-                          onChange={handleStudioImageUpload}
-                          className="sr-only"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
-                      Teks Tombol Utama Hero
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.heroCtaPrimary ?? ''}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          heroCtaPrimary: e.target.value,
-                        })
-                      }
-                      placeholder="Putar Album Terbaru"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
-                      Teks Tombol Kedua Hero
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.heroCtaSecondary ?? ''}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          heroCtaSecondary: e.target.value,
-                        })
-                      }
-                      placeholder="Lihat Jadwal"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
-                      Label Kecil Kartu Foto Hero
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.heroCardKicker ?? ''}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          heroCardKicker: e.target.value,
-                        })
-                      }
-                      placeholder="Jadwal Panggung Nusantara"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
-                      Judul Kartu Foto Hero
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.heroCardTitle ?? ''}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          heroCardTitle: e.target.value,
-                        })
-                      }
-                      placeholder="Sesi Panggung Terbuka & 12-Stack Sound System"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
-                      Catatan Footer Website
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.footerNote ?? ''}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          footerNote: e.target.value,
-                        })
-                      }
-                      placeholder="Roots Reggae & Analog Dub"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Form Tambah / Edit Bagian */}
+                <form
+                  onSubmit={handleSaveSection}
+                  className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3.5"
                 >
-                  <Check className="w-4 h-4" aria-hidden="true" />
-                  {saving ? 'Menyimpan...' : 'Simpan Tampilan Hero & Footer'}
-                </button>
-              </form>
-
-              {/* 2. Form Tambah atau Edit Bagian Halaman Website */}
-              <form
-                onSubmit={handleSaveSection}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
                       {editingSectionId
-                        ? `Edit Bagian Website (${sectionForm.navLabel || 'Bagian'})`
-                        : 'Tambah Bagian / Halaman Website Baru'}
+                        ? `Edit Bagian: ${sectionForm.navLabel || 'Bagian'}`
+                        : 'Tambah Bagian Kustom'}
                     </h2>
-                    <p className="text-xs text-[#A8A092] mt-0.5">
-                      {editingSectionBuiltinKey
-                        ? 'Ubah nama menu navigasi, label kecil, judul, atau status tampil bagian bawaan.'
-                        : 'Tambahkan blok halaman kustom baru seperti Merchandise, Press Kit, Sejarah Band, atau Kontak Riders.'}
-                    </p>
+                    {editingSectionId && (
+                      <button
+                        type="button"
+                        onClick={resetSectionForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    )}
                   </div>
-                  {editingSectionId && (
-                    <button
-                      type="button"
-                      onClick={resetSectionForm}
-                      className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      Batal Edit
-                    </button>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="text"
-                    required
-                    value={sectionForm.navLabel}
-                    onChange={(e) =>
-                      setSectionForm({ ...sectionForm, navLabel: e.target.value })
-                    }
-                    placeholder="Nama Menu Navbar (mis. Merchandise)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={sectionForm.slug}
-                    onChange={(e) =>
-                      setSectionForm({ ...sectionForm, slug: e.target.value })
-                    }
-                    placeholder="Slug ID (#anchor, opsional)"
-                    className="min-h-[40px] px-3 text-sm font-mono bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={sectionForm.kicker}
-                    onChange={(e) =>
-                      setSectionForm({ ...sectionForm, kicker: e.target.value })
-                    }
-                    placeholder="Kicker / Nomor Bagian (mis. 06. Rilisan Fisik)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Nama Menu Navigasi *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={sectionForm.navLabel}
+                        onChange={(e) =>
+                          setSectionForm({ ...sectionForm, navLabel: e.target.value })
+                        }
+                        placeholder="Contoh: Merchandise"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    required
-                    value={sectionForm.title}
-                    onChange={(e) =>
-                      setSectionForm({ ...sectionForm, title: e.target.value })
-                    }
-                    placeholder="Judul Utama Bagian Halaman"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={sectionForm.subtitle}
-                    onChange={(e) =>
-                      setSectionForm({ ...sectionForm, subtitle: e.target.value })
-                    }
-                    placeholder="Deskripsi Singkat / Subjudul (opsional)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Judul Bagian Halaman *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={sectionForm.title}
+                        onChange={(e) =>
+                          setSectionForm({ ...sectionForm, title: e.target.value })
+                        }
+                        placeholder="Judul utama bagian"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
 
-                {!editingSectionBuiltinKey && (
-                  <>
-                    <textarea
-                      rows={4}
-                      value={sectionForm.body}
-                      onChange={(e) =>
-                        setSectionForm({ ...sectionForm, body: e.target.value })
-                      }
-                      placeholder="Isi konten lengkap halaman (cerita, katalog merchandise, detail riders/booking, dll)..."
-                      className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Subjudul / Deskripsi Singkat
+                      </label>
+                      <input
+                        type="text"
+                        value={sectionForm.subtitle}
+                        onChange={(e) =>
+                          setSectionForm({ ...sectionForm, subtitle: e.target.value })
+                        }
+                        placeholder="Penjelasan singkat (opsional)"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
 
-                    <div className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="inline-flex items-center gap-2 min-h-[38px] px-4 py-2 text-xs font-semibold bg-[#1A2016] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
-                          <Upload className="w-4 h-4 text-[#EAB308]" aria-hidden="true" />
-                          {uploadingTarget === 'section'
-                            ? 'Mengunggah Media...'
-                            : sectionForm.imageUrl
-                              ? 'Ganti Foto / Video Bagian'
-                              : 'Unggah Foto atau Video Bagian (opsional)'}
-                          <input
-                            type="file"
-                            accept="image/*,video/mp4,video/webm,video/quicktime"
-                            disabled={uploadingTarget === 'section'}
-                            onChange={handleSectionMediaUpload}
-                            className="sr-only"
-                          />
-                        </label>
-                        {sectionForm.imageUrl && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSectionForm((prev) => ({
-                                ...prev,
-                                imageUrl: '',
-                                mediaType: 'image',
-                              }))
+                    {!editingSectionBuiltinKey && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                            Isi Konten Lengkap
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={sectionForm.body}
+                            onChange={(e) =>
+                              setSectionForm({ ...sectionForm, body: e.target.value })
                             }
-                            className="text-xs text-[#FCA5A5] hover:underline cursor-pointer"
-                          >
-                            Hapus Media Terpilih
-                          </button>
-                        )}
-                      </div>
-
-                      {sectionForm.imageUrl && (
-                        <div className="pt-2 border-t border-[#2A3024] flex items-center gap-3">
-                          {sectionForm.mediaType === 'video' ? (
-                            <video
-                              src={resolveAssetUrl(sectionForm.imageUrl)}
-                              controls
-                              playsInline
-                              className="h-24 w-40 rounded-lg object-cover border border-[#2A3024] bg-black"
-                            />
-                          ) : (
-                            <img
-                              src={resolveAssetUrl(sectionForm.imageUrl)}
-                              alt="Pratinjau media halaman"
-                              className="h-20 w-32 rounded-lg object-cover border border-[#2A3024]"
-                            />
-                          )}
-                          <span className="text-xs text-[#4ADE80]">
-                            Media siap ditampilkan pada bagian halaman ini.
-                          </span>
+                            placeholder="Isi informasi bagian..."
+                            className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                          />
                         </div>
-                      )}
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="inline-flex items-center gap-1.5 min-h-[36px] px-3 text-xs font-semibold bg-[#090B08] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
+                            <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
+                            {uploadingTarget === 'section'
+                              ? 'Mengunggah...'
+                              : sectionForm.imageUrl
+                                ? 'Ganti Media'
+                                : 'Unggah Foto / Video'}
+                            <input
+                              type="file"
+                              accept="image/*,video/mp4,video/webm,video/quicktime"
+                              disabled={uploadingTarget === 'section'}
+                              onChange={handleSectionMediaUpload}
+                              className="sr-only"
+                            />
+                          </label>
+                          {sectionForm.imageUrl && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSectionForm((prev) => ({
+                                  ...prev,
+                                  imageUrl: '',
+                                  mediaType: 'image',
+                                }))
+                              }
+                              className="text-xs text-[#FCA5A5] hover:underline cursor-pointer"
+                            >
+                              Hapus Media
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                              Teks Tombol
+                            </label>
+                            <input
+                              type="text"
+                              value={sectionForm.ctaLabel}
+                              onChange={(e) =>
+                                setSectionForm({ ...sectionForm, ctaLabel: e.target.value })
+                              }
+                              placeholder="Hubungi Kami"
+                              className="w-full min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                              Tautan Tombol
+                            </label>
+                            <input
+                              type="text"
+                              value={sectionForm.ctaUrl}
+                              onChange={(e) =>
+                                setSectionForm({ ...sectionForm, ctaUrl: e.target.value })
+                              }
+                              placeholder="https://..."
+                              className="w-full min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="space-y-1.5 pt-1">
+                      <label className="flex items-center gap-2 text-xs text-[#D6CFC2] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sectionForm.visible}
+                          onChange={(e) =>
+                            setSectionForm({ ...sectionForm, visible: e.target.checked })
+                          }
+                          className="accent-[#EAB308]"
+                        />
+                        Tampilkan di halaman website
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-[#D6CFC2] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sectionForm.showInNav}
+                          onChange={(e) =>
+                            setSectionForm({ ...sectionForm, showInNav: e.target.checked })
+                          }
+                          className="accent-[#EAB308]"
+                        />
+                        Tampilkan di menu navigasi &amp; footer
+                      </label>
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={sectionForm.ctaLabel}
-                        onChange={(e) =>
-                          setSectionForm({ ...sectionForm, ctaLabel: e.target.value })
-                        }
-                        placeholder="Teks Tombol Aksi (opsional, mis. Hubungi Manajemen)"
-                        className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                      />
-                      <input
-                        type="text"
-                        value={sectionForm.ctaUrl}
-                        onChange={(e) =>
-                          setSectionForm({ ...sectionForm, ctaUrl: e.target.value })
-                        }
-                        placeholder="Tautan Tombol (mis. mailto:booking@rasmalas.id atau #jadwal)"
-                        className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                      />
-                    </div>
-                  </>
-                )}
-
-                <div className="flex flex-wrap items-center gap-6 pt-1">
-                  <label className="inline-flex items-center gap-2 text-xs text-[#D6CFC2] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={sectionForm.visible}
-                      onChange={(e) =>
-                        setSectionForm({ ...sectionForm, visible: e.target.checked })
-                      }
-                      className="accent-[#EAB308]"
-                    />
-                    Tampilkan bagian ini di halaman website
-                  </label>
-                  <label className="inline-flex items-center gap-2 text-xs text-[#D6CFC2] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={sectionForm.showInNav}
-                      onChange={(e) =>
-                        setSectionForm({ ...sectionForm, showInNav: e.target.checked })
-                      }
-                      className="accent-[#EAB308]"
-                    />
-                    Tampilkan link di menu navigasi atas &amp; footer
-                  </label>
-                </div>
-
-                <div>
                   <button
                     type="submit"
                     disabled={saving || uploadingTarget === 'section'}
-                    className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                   >
                     {editingSectionId ? (
                       <Check className="w-4 h-4" aria-hidden="true" />
                     ) : (
                       <Plus className="w-4 h-4" aria-hidden="true" />
                     )}
-                    {editingSectionId
-                      ? 'Simpan Perubahan Bagian Halaman'
-                      : 'Tambahkan Bagian ke Website'}
+                    {editingSectionId ? 'Simpan Perubahan' : 'Tambah Bagian'}
                   </button>
-                </div>
-              </form>
+                </form>
 
-              {/* 3. Daftar Susunan Bagian Website (Urutkan, Tampil/Sembunyi, Edit, Hapus) */}
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#2A3024] flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                {/* Right Column: Daftar Susunan Bagian Website */}
+                <div className="lg:col-span-7 rounded-xl border border-[#2A3024] bg-[#11150F] overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-[#2A3024] flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-[#F5F2EB]">
-                      Susunan Bagian Halaman Website ({bandState.siteSections?.length ?? 0})
+                      Urutan Bagian Halaman ({bandState.siteSections?.length ?? 0})
                     </h2>
-                    <p className="text-xs text-[#A8A092] mt-0.5">
-                      Geser urutan atas/bawah, sembunyikan sementara, edit judul, atau hapus bagian.
-                    </p>
+                    <span className="text-[11px] text-[#A8A092]">
+                      Atur urutan tampil
+                    </span>
                   </div>
-                </div>
 
-                <div className="divide-y divide-[#2A3024]">
-                  {[...(bandState.siteSections ?? [])]
-                    .sort((a, b) => a.sortOrder - b.sortOrder)
-                    .map((sec, idx, arr) => (
-                      <div
-                        key={sec.id}
-                        className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#171C14]"
-                      >
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-xs text-[#A8A092]">
-                              #{idx + 1}
-                            </span>
-                            <span className="text-sm font-semibold text-[#F5F2EB]">
-                              {sec.navLabel}
-                            </span>
-                            <span className="font-mono text-[11px] text-[#A8A092]">
-                              #{sec.slug}
-                            </span>
-                            <span
-                              className={`text-[11px] font-medium px-2 py-0.5 rounded ${
-                                sec.builtinKey
-                                  ? 'bg-[#1D2419] text-[#D6CFC2]'
-                                  : 'bg-[#292310] text-[#EAB308]'
-                              }`}
-                            >
-                              {sec.builtinKey ? `Modul ${sec.builtinKey}` : 'Halaman Kustom'}
-                            </span>
-                            {!sec.visible && (
-                              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#2B1212] text-[#FCA5A5]">
-                                Disembunyikan
+                  <div className="divide-y divide-[#2A3024]">
+                    {[...(bandState.siteSections ?? [])]
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((sec, idx, arr) => (
+                        <div
+                          key={sec.id}
+                          className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#171C14]"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-xs font-semibold text-[#EAB308]">
+                                #{idx + 1}
                               </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-[#D6CFC2] truncate">{sec.title}</p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => void handleMoveSection(idx, -1)}
-                            aria-label={`Geser ${sec.navLabel} ke atas`}
-                            className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#D6CFC2] hover:text-[#EAB308] disabled:opacity-35 cursor-pointer"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={idx === arr.length - 1}
-                            onClick={() => void handleMoveSection(idx, 1)}
-                            aria-label={`Geser ${sec.navLabel} ke bawah`}
-                            className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#D6CFC2] hover:text-[#EAB308] disabled:opacity-35 cursor-pointer"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleToggleSectionVisible(sec)}
-                            aria-label={
-                              sec.visible
-                                ? `Sembunyikan ${sec.navLabel}`
-                                : `Tampilkan ${sec.navLabel}`
-                            }
-                            className="min-h-[34px] px-2.5 inline-flex items-center gap-1.5 rounded-lg border border-[#2A3024] text-xs text-[#D6CFC2] hover:border-[#EAB308] cursor-pointer"
-                          >
-                            {sec.visible ? (
-                              <>
-                                <Eye className="w-3.5 h-3.5 text-[#4ADE80]" />
-                                <span>Tampil</span>
-                              </>
-                            ) : (
-                              <>
-                                <EyeOff className="w-3.5 h-3.5 text-[#A8A092]" />
-                                <span>Tersembunyi</span>
-                              </>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => startEditSection(sec)}
-                            aria-label={`Edit bagian ${sec.navLabel}`}
-                            className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          {confirmDeleteSectionId === sec.id ? (
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => void handleDeleteSection(sec.id)}
-                                className="min-h-[32px] px-2.5 text-[11px] font-semibold bg-[#7F1D1D] text-[#FEE2E2] rounded-lg hover:bg-[#991B1B] cursor-pointer"
-                              >
-                                Konfirmasi Hapus
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteSectionId(null)}
-                                className="min-h-[32px] px-2 text-[11px] text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                              >
-                                Batal
-                              </button>
+                              <span className="text-xs font-semibold text-[#F5F2EB]">
+                                {sec.navLabel}
+                              </span>
+                              <span className="text-[11px] text-[#A8A092]">
+                                · {sec.builtinKey ? 'Bawaan' : 'Kustom'}
+                              </span>
+                              {!sec.visible && (
+                                <span className="text-[11px] text-[#FCA5A5]">
+                                  · Tersembunyi
+                                </span>
+                              )}
                             </div>
-                          ) : (
+                            <p className="text-xs text-[#A8A092] truncate mt-0.5">{sec.title}</p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
-                              onClick={() => setConfirmDeleteSectionId(sec.id)}
-                              aria-label={`Hapus bagian ${sec.navLabel}`}
-                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                              disabled={idx === 0}
+                              onClick={() => void handleMoveSection(idx, -1)}
+                              aria-label={`Geser ${sec.navLabel} ke atas`}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#D6CFC2] hover:text-[#EAB308] disabled:opacity-30 cursor-pointer"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <ArrowUp className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              disabled={idx === arr.length - 1}
+                              onClick={() => void handleMoveSection(idx, 1)}
+                              aria-label={`Geser ${sec.navLabel} ke bawah`}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#D6CFC2] hover:text-[#EAB308] disabled:opacity-30 cursor-pointer"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleToggleSectionVisible(sec)}
+                              className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-[#2A3024] text-xs text-[#D6CFC2] hover:border-[#EAB308] cursor-pointer"
+                            >
+                              {sec.visible ? (
+                                <Eye className="w-3.5 h-3.5 text-[#4ADE80]" />
+                              ) : (
+                                <EyeOff className="w-3.5 h-3.5 text-[#A8A092]" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEditSection(sec)}
+                              aria-label={`Edit bagian ${sec.navLabel}`}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {confirmDeleteSectionId === sec.id ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteSection(sec.id)}
+                                  className="h-8 px-2.5 text-[11px] font-semibold bg-[#7F1D1D] text-[#FEE2E2] rounded-lg hover:bg-[#991B1B] cursor-pointer"
+                                >
+                                  Hapus
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteSectionId(null)}
+                                  className="h-8 px-2 text-[11px] text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteSectionId(sec.id)}
+                                aria-label={`Hapus bagian ${sec.navLabel}`}
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-[#2A3024] text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* SECTION 1C: FOOTER WEBSITE (EDIT, TAMBAH & HAPUS LENGKAP) */}
+          {/* SECTION 1C: FOOTER WEBSITE */}
           {section === 'footer' && (
-            <div className="space-y-8">
-              {/* 1. Branding, Deskripsi, Lokasi, Email & Hak Cipta Footer */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void saveProfilePayload(
-                    profileForm,
-                    'Konten footer website diperbarui secara real-time.'
-                  );
-                }}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5"
-              >
-                <div>
-                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                    Pengaturan Teks, Logo &amp; Info Footer
-                  </h1>
-                  <p className="text-xs text-[#A8A092] mt-1">
-                    Edit atau kosongkan/hapus teks deskripsi, lokasi, email booking, logo, dan hak
-                    cipta di bagian bawah website.
-                  </p>
-                </div>
+            <div className="space-y-6">
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Pengaturan Footer Website
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Kelola informasi deskripsi, lokasi, hak cipta, dan tautan navigasi di bagian bawah website.
+                </p>
+              </div>
 
-                {/* Logo di Footer */}
-                <div className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#D6CFC2]">
-                      Logo Brand di Footer &amp; Navbar
-                    </span>
-                    {profileForm.logoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = { ...profileForm, logoUrl: undefined };
-                          setProfileForm(next);
-                          void saveProfilePayload(next, 'Logo gambar dihapus, menampilkan teks nama band.');
-                        }}
-                        className="text-xs text-[#FCA5A5] hover:underline cursor-pointer"
-                      >
-                        Hapus Logo Gambar
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4">
-                    {profileForm.logoUrl ? (
-                      <div className="h-12 w-36 overflow-hidden rounded-lg border border-[#2A3024] bg-[#11150F] flex items-center justify-center">
-                        <img
-                          src={resolveAssetUrl(profileForm.logoUrl)}
-                          alt={profileForm.name}
-                          className="h-full w-full object-cover object-center scale-[1.15]"
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-sm font-display font-bold text-[#F5F2EB] px-3 py-2 rounded-lg border border-[#2A3024] bg-[#11150F]">
-                        {profileForm.name} (Teks)
-                      </span>
-                    )}
-                    <label className="inline-flex items-center gap-2 min-h-[38px] px-3.5 py-2 text-xs font-semibold bg-[#1A2016] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
-                      <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
-                      {uploadingTarget === 'logo' ? 'Mengunggah Logo...' : 'Ganti / Unggah Logo'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={uploadingTarget === 'logo'}
-                        onChange={handleLogoUpload}
-                        className="sr-only"
-                      />
-                    </label>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Teks, Kontak & Hak Cipta Footer */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveProfilePayload(
+                      profileForm,
+                      'Konten footer website diperbarui secara real-time.'
+                    );
+                  }}
+                  className="lg:col-span-6 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4"
+                >
+                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                    Informasi &amp; Hak Cipta Footer
+                  </h2>
 
-                {/* Deskripsi Footer */}
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
-                      Deskripsi Singkat di Footer
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Tagline Singkat Footer
                     </label>
-                    <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      value={profileForm.footerNote}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, footerNote: e.target.value })
+                      }
+                      placeholder="Contoh: Roots Reggae & Analog Dub"
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="text-xs font-medium text-[#D6CFC2]">
+                        Deskripsi Singkat di Footer
+                      </label>
                       <button
                         type="button"
                         onClick={() =>
@@ -2629,270 +2423,178 @@ export function AdminDashboard({
                       >
                         Isi dari Subjudul
                       </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setProfileForm({ ...profileForm, footerDescription: '' })
-                        }
-                        className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
-                      >
-                        Hapus Deskripsi
-                      </button>
                     </div>
+                    <textarea
+                      rows={3}
+                      value={
+                        profileForm.footerDescription !== undefined
+                          ? profileForm.footerDescription
+                          : `${profileForm.footerNote ? `${profileForm.footerNote} — ` : ''}${profileForm.subheadline}`
+                      }
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, footerDescription: e.target.value })
+                      }
+                      placeholder="Deskripsi singkat di footer..."
+                      className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
                   </div>
-                  <textarea
-                    rows={3}
-                    value={
-                      profileForm.footerDescription !== undefined
-                        ? profileForm.footerDescription
-                        : `${profileForm.footerNote ? `${profileForm.footerNote} — ` : ''}${profileForm.subheadline}`
-                    }
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, footerDescription: e.target.value })
-                    }
-                    placeholder="Kosongkan bila tidak ingin menampilkan deskripsi di footer..."
-                    className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Lokasi */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs font-medium text-[#D6CFC2]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
                         Lokasi / Kota Basis
                       </label>
-                      {profileForm.originCity && (
-                        <button
-                          type="button"
-                          onClick={() => setProfileForm({ ...profileForm, originCity: '' })}
-                          className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
-                        >
-                          Hapus
-                        </button>
-                      )}
+                      <input
+                        type="text"
+                        value={profileForm.originCity}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, originCity: e.target.value })
+                        }
+                        placeholder="Denpasar & Yogyakarta"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
                     </div>
-                    <input
-                      type="text"
-                      value={profileForm.originCity}
-                      onChange={(e) =>
-                        setProfileForm({ ...profileForm, originCity: e.target.value })
-                      }
-                      placeholder="Contoh: Denpasar & Yogyakarta"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-
-                  {/* Email Booking */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs font-medium text-[#D6CFC2]">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
                         Email Kontak / Booking
                       </label>
-                      {profileForm.bookingEmail && (
-                        <button
-                          type="button"
-                          onClick={() => setProfileForm({ ...profileForm, bookingEmail: '' })}
-                          className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
-                        >
-                          Hapus
-                        </button>
-                      )}
+                      <input
+                        type="text"
+                        value={profileForm.bookingEmail}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, bookingEmail: e.target.value })
+                        }
+                        placeholder="booking@rasmalas.id"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
                     </div>
-                    <input
-                      type="text"
-                      value={profileForm.bookingEmail}
-                      onChange={(e) =>
-                        setProfileForm({ ...profileForm, bookingEmail: e.target.value })
-                      }
-                      placeholder="Contoh: booking@rasmalas.id"
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
                   </div>
-                </div>
 
-                {/* Hak Cipta Bawah */}
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-xs font-medium text-[#D6CFC2]">
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
                       Teks Hak Cipta Bawah (Copyright)
                     </label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setProfileForm({
-                            ...profileForm,
-                            footerCopyright: `© ${new Date().getFullYear()} ${profileForm.name}. ${profileForm.footerNote || 'Roots Reggae & Analog Dub'}.`,
-                          })
-                        }
-                        className="text-[11px] text-[#EAB308] hover:underline cursor-pointer"
-                      >
-                        Isi Default
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setProfileForm({ ...profileForm, footerCopyright: '' })
-                        }
-                        className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
-                      >
-                        Hapus Hak Cipta
-                      </button>
-                    </div>
+                    <input
+                      type="text"
+                      value={
+                        profileForm.footerCopyright !== undefined
+                          ? profileForm.footerCopyright
+                          : `© ${new Date().getFullYear()} ${profileForm.name}. ${profileForm.footerNote || 'Roots Reggae & Analog Dub'}.`
+                      }
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, footerCopyright: e.target.value })
+                      }
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={
-                      profileForm.footerCopyright !== undefined
-                        ? profileForm.footerCopyright
-                        : `© ${new Date().getFullYear()} ${profileForm.name}. ${profileForm.footerNote || 'Roots Reggae & Analog Dub'}.`
-                    }
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, footerCopyright: e.target.value })
-                    }
-                    placeholder="Contoh: © 2026 Rasmalas. Roots Reggae & Analog Dub."
-                    className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" aria-hidden="true" />
-                  {saving ? 'Menyimpan...' : 'Simpan Pengaturan Teks Footer'}
-                </button>
-              </form>
-
-              {/* 2. Kolom Navigasi Footer (Toggle Halaman & Tambah/Edit/Hapus Tautan Kustom) */}
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
-                      Kolom Navigasi Footer (Tambah, Edit &amp; Hapus Tautan)
-                    </h2>
-                    <p className="text-xs text-[#A8A092] mt-0.5">
-                      Atur tautan bagian halaman yang tampil di footer atau tambahkan link kustom
-                      baru (mis. Press Kit, WhatsApp, Merch).
-                    </p>
-                  </div>
                   <button
-                    type="button"
-                    onClick={() => setSection('pages')}
-                    className="text-xs text-[#EAB308] hover:underline cursor-pointer"
+                    type="submit"
+                    disabled={saving}
+                    className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                   >
-                    Kelola Halaman Website →
+                    <Check className="w-4 h-4" aria-hidden="true" />
+                    {saving ? 'Menyimpan...' : 'Simpan Teks Footer'}
                   </button>
-                </div>
-
-                {/* Toggle navigasi bagian bawaan */}
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-[#D6CFC2]">
-                    Tautan Bagian Halaman Otomatis:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {[...(bandState.siteSections ?? [])]
-                      .sort((a, b) => a.sortOrder - b.sortOrder)
-                      .map((sec) => (
-                        <button
-                          key={sec.id}
-                          type="button"
-                          onClick={() => void handleToggleSectionNav(sec)}
-                          className={`inline-flex items-center gap-2 min-h-[36px] px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer ${
-                            sec.showInNav && sec.visible
-                              ? 'border-[#EAB308]/60 bg-[#292310]/60 text-[#F5F2EB]'
-                              : 'border-[#2A3024] bg-[#090B08] text-[#787166]'
-                          }`}
-                        >
-                          {sec.showInNav && sec.visible ? (
-                            <Eye className="w-3.5 h-3.5 text-[#4ADE80]" />
-                          ) : (
-                            <EyeOff className="w-3.5 h-3.5" />
-                          )}
-                          <span>{sec.navLabel}</span>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Form Tambah / Edit Link Footer Kustom */}
-                <form
-                  onSubmit={handleSaveFooterLink}
-                  className="pt-4 border-t border-[#2A3024] space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold text-[#D6CFC2]">
-                      {editingFooterLinkId
-                        ? 'Edit Tautan Footer Kustom'
-                        : 'Tambah Tautan Footer Kustom Baru'}
-                    </p>
-                    {editingFooterLinkId && (
-                      <button
-                        type="button"
-                        onClick={resetFooterLinkForm}
-                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                      >
-                        Batal Edit
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                    <input
-                      type="text"
-                      required
-                      value={footerLinkForm.label}
-                      onChange={(e) =>
-                        setFooterLinkForm({ ...footerLinkForm, label: e.target.value })
-                      }
-                      placeholder="Label Tautan (mis. Press Kit / WhatsApp)"
-                      className="sm:col-span-4 min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                    <input
-                      type="text"
-                      required
-                      value={footerLinkForm.url}
-                      onChange={(e) =>
-                        setFooterLinkForm({ ...footerLinkForm, url: e.target.value })
-                      }
-                      placeholder="URL Tujuan (#jadwal, https://..., mailto:...)"
-                      className="sm:col-span-5 min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="sm:col-span-3 inline-flex items-center justify-center gap-2 min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                    >
-                      {editingFooterLinkId ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Link2 className="w-4 h-4" />
-                      )}
-                      {editingFooterLinkId ? 'Simpan Tautan' : 'Tambah Tautan'}
-                    </button>
-                  </div>
                 </form>
 
-                {/* Daftar Link Footer Kustom */}
-                <div className="space-y-2">
-                  {(profileForm.footerLinks ?? []).length === 0 ? (
-                    <p className="text-xs text-[#787166]">
-                      Belum ada tautan footer kustom tambahan. Gunakan form di atas untuk
-                      menambahkannya.
+                {/* Right Column: Navigasi & Tautan Kustom Footer */}
+                <div className="lg:col-span-6 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4">
+                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                    Tautan Navigasi &amp; Link Kustom Footer
+                  </h2>
+
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#A8A092]">
+                      Klik untuk menampilkan/menyembunyikan bagian halaman di navigasi footer:
                     </p>
-                  ) : (
-                    <div className="divide-y divide-[#2A3024] rounded-xl border border-[#2A3024] bg-[#090B08] overflow-hidden">
+                    <div className="flex flex-wrap gap-2">
+                      {[...(bandState.siteSections ?? [])]
+                        .sort((a, b) => a.sortOrder - b.sortOrder)
+                        .map((sec) => (
+                          <button
+                            key={sec.id}
+                            type="button"
+                            onClick={() => void handleToggleSectionNav(sec)}
+                            className={`inline-flex items-center gap-1.5 min-h-[34px] px-2.5 py-1 text-xs rounded-lg border transition-colors cursor-pointer ${
+                              sec.showInNav && sec.visible
+                                ? 'border-[#EAB308]/60 bg-[#292310]/60 text-[#F5F2EB]'
+                                : 'border-[#2A3024] bg-[#090B08] text-[#787166]'
+                            }`}
+                          >
+                            {sec.showInNav && sec.visible ? (
+                              <Eye className="w-3.5 h-3.5 text-[#4ADE80]" />
+                            ) : (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            )}
+                            <span>{sec.navLabel}</span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={handleSaveFooterLink}
+                    className="pt-3 border-t border-[#2A3024] space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-[#D6CFC2]">
+                        {editingFooterLinkId ? 'Edit Tautan Kustom' : 'Tambah Tautan Kustom'}
+                      </p>
+                      {editingFooterLinkId && (
+                        <button
+                          type="button"
+                          onClick={resetFooterLinkForm}
+                          className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={footerLinkForm.label}
+                        onChange={(e) =>
+                          setFooterLinkForm({ ...footerLinkForm, label: e.target.value })
+                        }
+                        placeholder="Label (mis. Press Kit)"
+                        className="sm:col-span-4 min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={footerLinkForm.url}
+                        onChange={(e) =>
+                          setFooterLinkForm({ ...footerLinkForm, url: e.target.value })
+                        }
+                        placeholder="https://..."
+                        className="sm:col-span-5 min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        className="sm:col-span-3 inline-flex items-center justify-center gap-1.5 min-h-[38px] px-3 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                      >
+                        {editingFooterLinkId ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+                        {editingFooterLinkId ? 'Simpan' : 'Tambah'}
+                      </button>
+                    </div>
+                  </form>
+
+                  {(profileForm.footerLinks ?? []).length > 0 && (
+                    <div className="divide-y divide-[#2A3024] rounded-lg border border-[#2A3024] bg-[#090B08] overflow-hidden">
                       {(profileForm.footerLinks ?? []).map((link) => (
                         <div
                           key={link.id}
-                          className="px-4 py-3 flex items-center justify-between gap-3"
+                          className="px-3.5 py-2.5 flex items-center justify-between gap-2"
                         >
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[#F5F2EB] truncate">
+                            <p className="text-xs font-semibold text-[#F5F2EB] truncate">
                               {link.label}
                             </p>
-                            <p className="text-xs font-mono text-[#A8A092] truncate">
+                            <p className="text-[11px] font-mono text-[#A8A092] truncate">
                               {link.url}
                             </p>
                           </div>
@@ -2901,17 +2603,17 @@ export function AdminDashboard({
                               type="button"
                               onClick={() => startEditFooterLink(link)}
                               aria-label={`Edit tautan ${link.label}`}
-                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                              className="h-7 w-7 inline-flex items-center justify-center rounded text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteFooterLink(link.id)}
                               aria-label={`Hapus tautan ${link.label}`}
-                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                              className="h-7 w-7 inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -2920,433 +2622,377 @@ export function AdminDashboard({
                   )}
                 </div>
               </div>
-
-              {/* 3. Kontak & Kanal Resmi Footer (Tambah, Edit & Hapus Kanal) */}
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
-                      Kontak &amp; Kanal Resmi di Footer
-                    </h2>
-                    <p className="text-xs text-[#A8A092] mt-0.5">
-                      Tambah kanal baru (mis. WhatsApp, Bandcamp, SoundCloud), ubah URL, aktifkan/nonaktifkan, atau hapus kanal dari footer.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveChannels}
-                    disabled={saving}
-                    className="min-h-[38px] px-4 py-1.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                  >
-                    Simpan Perubahan Kanal
-                  </button>
-                </div>
-
-                {/* Form Tambah Kanal Baru */}
-                <form
-                  onSubmit={handleAddChannel}
-                  className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3"
-                >
-                  <p className="text-xs font-semibold text-[#D6CFC2]">
-                    + Tambah Kanal / Kontak Resmi Baru
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5">
-                    <input
-                      type="text"
-                      required
-                      value={newChannelForm.platform}
-                      onChange={(e) =>
-                        setNewChannelForm({ ...newChannelForm, platform: e.target.value })
-                      }
-                      placeholder="Nama Kanal (mis. WhatsApp)"
-                      className="lg:col-span-3 min-h-[38px] px-3 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                    <input
-                      type="text"
-                      value={newChannelForm.handle}
-                      onChange={(e) =>
-                        setNewChannelForm({ ...newChannelForm, handle: e.target.value })
-                      }
-                      placeholder="Handle / Label (opsional)"
-                      className="lg:col-span-3 min-h-[38px] px-3 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                    <input
-                      type="url"
-                      required
-                      value={newChannelForm.url}
-                      onChange={(e) =>
-                        setNewChannelForm({ ...newChannelForm, url: e.target.value })
-                      }
-                      placeholder="URL (https://...)"
-                      className="lg:col-span-4 min-h-[38px] px-3 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="lg:col-span-2 inline-flex items-center justify-center gap-1.5 min-h-[38px] px-3 text-xs font-semibold bg-[#1A2016] border border-[#EAB308]/60 text-[#EAB308] rounded-lg hover:bg-[#EAB308] hover:text-[#090B08] cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Tambah
-                    </button>
-                  </div>
-                </form>
-
-                {/* Daftar Kanal dengan Edit & Hapus */}
-                <div className="space-y-3">
-                  {channelsForm.map((ch, idx) => (
-                    <div
-                      key={ch.platform}
-                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center rounded-xl border border-[#2A3024] bg-[#090B08] p-3"
-                    >
-                      <label className="sm:col-span-3 flex items-center gap-2 text-xs font-semibold text-[#F5F2EB] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={ch.connected}
-                          onChange={(e) => {
-                            const next = [...channelsForm];
-                            next[idx] = { ...ch, connected: e.target.checked };
-                            setChannelsForm(next);
-                          }}
-                          className="accent-[#EAB308]"
-                        />
-                        <span className="truncate">{ch.platform}</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={ch.handle}
-                        onChange={(e) => {
-                          const next = [...channelsForm];
-                          next[idx] = { ...ch, handle: e.target.value };
-                          setChannelsForm(next);
-                        }}
-                        placeholder="Handle / Username"
-                        className="sm:col-span-3 min-h-[38px] px-2.5 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                      />
-                      <input
-                        type="url"
-                        value={ch.url}
-                        onChange={(e) => {
-                          const next = [...channelsForm];
-                          next[idx] = { ...ch, url: e.target.value };
-                          setChannelsForm(next);
-                        }}
-                        placeholder="URL Tujuan"
-                        className="sm:col-span-5 min-h-[38px] px-2.5 text-xs bg-[#11150F] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                      />
-                      <div className="sm:col-span-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteChannel(ch.platform)}
-                          aria-label={`Hapus kanal ${ch.platform}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
           {/* SECTION 2: PROFIL & PERSONEL */}
           {section === 'profile' && (
-            <div className="space-y-8">
-              <form
-                onSubmit={handleSaveProfileForm}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5"
-              >
+            <div className="space-y-6">
+              <div>
                 <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                  Identitas Band &amp; Statistik Hero
+                  Profil Band, Hero &amp; Formasi Personel
                 </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Kelola identitas utama band, visual hero, biografi, statistik, dan daftar anggota personel.
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">Nama Band</label>
-                    <input
-                      type="text"
-                      required
-                      value={profileForm.name}
-                      onChange={(e) =>
-                        setProfileForm({ ...profileForm, name: e.target.value })
-                      }
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Identitas & Visual Band */}
+                <form
+                  onSubmit={handleSaveProfileForm}
+                  className="lg:col-span-7 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      Identitas &amp; Tampilan Hero
+                    </h2>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                      {saving ? 'Menyimpan...' : 'Simpan Profil'}
+                    </button>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">Kota Basis</label>
-                    <input
-                      type="text"
-                      value={profileForm.originCity}
-                      onChange={(e) =>
-                        setProfileForm({ ...profileForm, originCity: e.target.value })
-                      }
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                    />
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-[#D6CFC2]">
-                    Logo Band (Upload PNG / JPG / WebP)
-                  </label>
-                  <div className="flex flex-wrap items-center gap-4">
-                    {profileForm.logoUrl && (
-                      <div className="h-12 px-3 rounded-lg border border-[#2A3024] bg-[#090B08] flex items-center justify-center">
-                        <img
-                          src={resolveAssetUrl(profileForm.logoUrl)}
-                          alt="Logo Band"
-                          className="h-8 w-auto object-contain"
-                        />
+                  {/* Upload Logo, Hero, Studio dalam 3 kartu ringkas */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-[#2A3024] bg-[#090B08] p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-[#D6CFC2]">Logo Band</span>
+                        {profileForm.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = { ...profileForm, logoUrl: undefined };
+                              setProfileForm(next);
+                              void saveProfilePayload(next, 'Logo gambar dihapus.');
+                            }}
+                            className="text-[10px] text-[#FCA5A5] hover:underline cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        )}
                       </div>
-                    )}
-                    <label className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#1A2016] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
-                      <Upload className="w-4 h-4 text-[#EAB308]" aria-hidden="true" />
-                      {uploadingTarget === 'logo' ? 'Mengunggah Logo...' : 'Unggah File Logo'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={uploadingTarget === 'logo'}
-                        onChange={handleLogoUpload}
-                        className="sr-only"
-                      />
-                    </label>
-                  </div>
-                </div>
+                      <label className="inline-flex w-full items-center justify-center gap-1.5 min-h-[34px] px-2.5 text-xs font-medium bg-[#141911] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
+                        <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
+                        <span className="truncate">
+                          {uploadingTarget === 'logo' ? 'Mengunggah...' : 'Unggah Logo'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingTarget === 'logo'}
+                          onChange={handleLogoUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">Kicker Hero</label>
+                    <div className="rounded-lg border border-[#2A3024] bg-[#090B08] p-3 space-y-2">
+                      <span className="block text-[11px] font-medium text-[#D6CFC2]">
+                        Foto Utama Hero
+                      </span>
+                      <label className="inline-flex w-full items-center justify-center gap-1.5 min-h-[34px] px-2.5 text-xs font-medium bg-[#141911] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
+                        <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
+                        <span className="truncate">
+                          {uploadingTarget === 'hero' ? 'Mengunggah...' : 'Foto Hero'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingTarget === 'hero'}
+                          onChange={handleHeroImageUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="rounded-lg border border-[#2A3024] bg-[#090B08] p-3 space-y-2">
+                      <span className="block text-[11px] font-medium text-[#D6CFC2]">
+                        Foto Studio Profil
+                      </span>
+                      <label className="inline-flex w-full items-center justify-center gap-1.5 min-h-[34px] px-2.5 text-xs font-medium bg-[#141911] border border-[#2A3024] text-[#F5F2EB] rounded-lg hover:border-[#EAB308] cursor-pointer">
+                        <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
+                        <span className="truncate">
+                          {uploadingTarget === 'studio' ? 'Mengunggah...' : 'Foto Studio'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingTarget === 'studio'}
+                          onChange={handleStudioImageUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Nama Band
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={profileForm.name}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, name: e.target.value })
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Kota Basis
+                      </label>
+                      <input
+                        type="text"
+                        value={profileForm.originCity}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, originCity: e.target.value })
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Email Booking
+                      </label>
+                      <input
+                        type="email"
+                        value={profileForm.bookingEmail}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, bookingEmail: e.target.value })
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Label Kicker Hero
+                      </label>
+                      <input
+                        type="text"
+                        value={profileForm.kicker}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, kicker: e.target.value })
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Headline Utama Hero
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={profileForm.headline}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, headline: e.target.value })
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Subheadline Hero
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={profileForm.subheadline}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, subheadline: e.target.value })
+                      }
+                      className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Biografi Band
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={profileForm.bio}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, bio: e.target.value })
+                      }
+                      className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Kutipan Filosofi Studio
+                    </label>
                     <input
                       type="text"
-                      value={profileForm.kicker}
+                      value={profileForm.studioQuote}
                       onChange={(e) =>
-                        setProfileForm({ ...profileForm, kicker: e.target.value })
+                        setProfileForm({ ...profileForm, studioQuote: e.target.value })
                       }
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#D6CFC2]">Email Booking</label>
+
+                  <div className="pt-2 border-t border-[#2A3024] space-y-2">
+                    <p className="text-xs font-semibold text-[#D6CFC2]">
+                      4 Statistik Hero
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {profileForm.stats.map((st, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <input
+                            type="text"
+                            value={st.value}
+                            onChange={(e) => {
+                              const next = [...profileForm.stats];
+                              next[idx] = { ...st, value: e.target.value };
+                              setProfileForm({ ...profileForm, stats: next });
+                            }}
+                            placeholder="Nilai"
+                            className="w-full min-h-[34px] px-2.5 text-xs font-mono bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                          />
+                          <input
+                            type="text"
+                            value={st.label}
+                            onChange={(e) => {
+                              const next = [...profileForm.stats];
+                              next[idx] = { ...st, label: e.target.value };
+                              setProfileForm({ ...profileForm, stats: next });
+                            }}
+                            placeholder="Label"
+                            className="w-full min-h-[34px] px-2.5 text-[11px] bg-[#090B08] border border-[#2A3024] rounded-lg text-[#A8A092]"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </form>
+
+                {/* Right Column: Formasi Personel */}
+                <div className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[#EAB308]" aria-hidden="true" />
+                      <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                        Personel Band ({profileForm.members.length})
+                      </h2>
+                    </div>
+                    {editingMemberId && (
+                      <button
+                        type="button"
+                        onClick={resetMemberForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAddMember} className="space-y-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <input
+                        type="text"
+                        required
+                        value={newMember.name}
+                        onChange={(e) => setNewMember({ ...newMember, name: e.target.value })}
+                        placeholder="Nama Personel *"
+                        className="min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={newMember.role}
+                        onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
+                        placeholder="Peran (Vokal / Gitar) *"
+                        className="min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <input
+                        type="text"
+                        value={newMember.instrument}
+                        onChange={(e) =>
+                          setNewMember({ ...newMember, instrument: e.target.value })
+                        }
+                        placeholder="Instrumen"
+                        className="min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      <input
+                        type="text"
+                        value={newMember.origin}
+                        onChange={(e) =>
+                          setNewMember({ ...newMember, origin: e.target.value })
+                        }
+                        placeholder="Kota Asal"
+                        className="min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
                     <input
-                      type="email"
-                      value={profileForm.bookingEmail}
+                      type="text"
+                      value={newMember.instagramUrl ?? ''}
                       onChange={(e) =>
-                        setProfileForm({ ...profileForm, bookingEmail: e.target.value })
+                        setNewMember({ ...newMember, instagramUrl: e.target.value })
                       }
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      placeholder="Link / Username Instagram (@akun)"
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                     />
-                  </div>
-                </div>
+                    <button
+                      type="submit"
+                      className="w-full inline-flex items-center justify-center gap-1.5 min-h-[38px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
+                    >
+                      {editingMemberId ? (
+                        <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                      )}
+                      {editingMemberId ? 'Simpan Personel' : 'Tambah Personel'}
+                    </button>
+                  </form>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-[#D6CFC2]">Headline Utama</label>
-                  <input
-                    type="text"
-                    required
-                    value={profileForm.headline}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, headline: e.target.value })
-                    }
-                    className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-[#D6CFC2]">Subheadline Hero</label>
-                  <textarea
-                    rows={2}
-                    value={profileForm.subheadline}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, subheadline: e.target.value })
-                    }
-                    className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-[#D6CFC2]">Biografi Band</label>
-                  <textarea
-                    rows={3}
-                    value={profileForm.bio}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, bio: e.target.value })
-                    }
-                    className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-[#D6CFC2]">Kutipan Studio</label>
-                  <input
-                    type="text"
-                    value={profileForm.studioQuote}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, studioQuote: e.target.value })
-                    }
-                    className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-[#2A3024]">
-                  <p className="text-xs font-semibold text-[#D6CFC2]">
-                    4 Angka Statistik di Bawah Hero
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {profileForm.stats.map((st, idx) => (
-                      <div key={idx} className="space-y-1.5">
-                        <input
-                          type="text"
-                          value={st.value}
-                          onChange={(e) => {
-                            const next = [...profileForm.stats];
-                            next[idx] = { ...st, value: e.target.value };
-                            setProfileForm({ ...profileForm, stats: next });
-                          }}
-                          placeholder="Nilai"
-                          className="w-full min-h-[36px] px-2.5 text-xs font-mono bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                        />
-                        <input
-                          type="text"
-                          value={st.label}
-                          onChange={(e) => {
-                            const next = [...profileForm.stats];
-                            next[idx] = { ...st, label: e.target.value };
-                            setProfileForm({ ...profileForm, stats: next });
-                          }}
-                          placeholder="Label"
-                          className="w-full min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#A8A092]"
-                        />
+                  <div className="divide-y divide-[#2A3024] pt-1">
+                    {profileForm.members.map((m) => (
+                      <div key={m.id} className="py-2.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-[#F5F2EB] truncate">{m.name}</p>
+                          <p className="text-[11px] text-[#A8A092] truncate">
+                            {m.role}
+                            {m.instrument ? ` · ${m.instrument}` : ''}
+                            {m.origin ? ` · ${m.origin}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => startEditMember(m)}
+                            aria-label={`Edit personel ${m.name}`}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMember(m.id)}
+                            aria-label={`Hapus personel ${m.name}`}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" aria-hidden="true" />
-                  {saving ? 'Menyimpan...' : 'Simpan Perubahan Profil'}
-                </button>
-              </form>
-
-              {/* Lineup Member Management */}
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-[#EAB308]" aria-hidden="true" />
-                    <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
-                      Kelola Formasi Personel ({profileForm.members.length})
-                    </h2>
-                  </div>
-                  {editingMemberId && (
-                    <button
-                      type="button"
-                      onClick={resetMemberForm}
-                      className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      Batal Edit Personel
-                    </button>
-                  )}
-                </div>
-
-                <form
-                  onSubmit={handleAddMember}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
-                >
-                  <input
-                    type="text"
-                    required
-                    value={newMember.name}
-                    onChange={(e) => setNewMember({ ...newMember, name: e.target.value })}
-                    placeholder="Nama Personel"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    required
-                    value={newMember.role}
-                    onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
-                    placeholder="Peran (mis. Vokal & Gitar)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={newMember.instrument}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, instrument: e.target.value })
-                    }
-                    placeholder="Instrumen"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={newMember.origin}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, origin: e.target.value })
-                    }
-                    placeholder="Kota Asal"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={newMember.instagramUrl ?? ''}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, instagramUrl: e.target.value })
-                    }
-                    placeholder="Link Bio Instagram (https://instagram.com/... atau @akun)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-2 min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
-                  >
-                    {editingMemberId ? (
-                      <Check className="w-4 h-4" aria-hidden="true" />
-                    ) : (
-                      <Plus className="w-4 h-4" aria-hidden="true" />
-                    )}
-                    {editingMemberId ? 'Simpan Personel' : 'Tambah Personel'}
-                  </button>
-                </form>
-
-                <div className="divide-y divide-[#2A3024]">
-                  {profileForm.members.map((m) => (
-                    <div key={m.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#F5F2EB]">{m.name}</p>
-                        <p className="text-xs text-[#A8A092]">
-                          {m.role} · {m.instrument} · {m.origin}
-                        </p>
-                        {m.instagramUrl && (
-                          <p className="text-xs text-[#EAB308] truncate mt-0.5">
-                            Instagram: {m.instagramUrl}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => startEditMember(m)}
-                          aria-label={`Edit personel ${m.name}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMember(m.id)}
-                          aria-label={`Hapus personel ${m.name}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
@@ -3355,415 +3001,477 @@ export function AdminDashboard({
           {/* SECTION 3: MUSIK & AUDIO */}
           {section === 'tracks' && (
             <div className="space-y-6">
-              <form
-                onSubmit={handleSaveTrack}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 sm:p-6 space-y-5"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                    {editingTrackId ? 'Edit Lagu Streaming' : 'Tambah Lagu Streaming Baru'}
-                  </h1>
-                  {editingTrackId && (
-                    <button
-                      type="button"
-                      onClick={resetTrackForm}
-                      className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      Batal Edit
-                    </button>
-                  )}
-                </div>
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Katalog Musik &amp; Streaming Audio
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Unggah file lagu (MP3/WAV/M4A), sampul rilisan, serta lirik lagu untuk pemutar musik website.
+                </p>
+              </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-[#D6CFC2]">
-                    Judul Lagu
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={trackForm.title}
-                    onChange={(e) => setTrackForm({ ...trackForm, title: e.target.value })}
-                    placeholder="Masukkan judul lagu..."
-                    className="w-full min-h-[42px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <span className="block text-xs font-medium text-[#D6CFC2]">
-                      File Upload Lagu (Audio)
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2 min-h-[48px] px-3 py-2 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#EAB308] cursor-pointer">
-                        <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
-                        {uploadingTarget === 'audio'
-                          ? `Mengunggah Lagu${uploadProgress !== null ? ` (${uploadProgress}%)` : '...'}`
-                          : trackForm.audioUrl
-                            ? 'Ganti File Lagu (MP3/WAV)'
-                            : 'Unggah File Lagu (MP3/WAV/M4A)'}
-                        <input
-                          type="file"
-                          accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.aac"
-                          disabled={uploadingTarget === 'audio'}
-                          onChange={handleTrackAudioUpload}
-                          className="sr-only"
-                        />
-                      </label>
-                      {trackForm.audioUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setTrackForm({ ...trackForm, audioUrl: '' })}
-                          className="ml-auto text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
-                        >
-                          Hapus Lagu
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="block text-xs font-medium text-[#D6CFC2]">
-                      Upload Foto Sampul
-                    </span>
-                    <div className="flex items-center gap-3 min-h-[48px] px-3 py-1.5 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                      {trackForm.coverUrl && (
-                        <img
-                          src={resolveAssetUrl(trackForm.coverUrl)}
-                          alt="Pratinjau foto sampul"
-                          className="w-9 h-9 rounded object-cover border border-[#2A3024] shrink-0"
-                        />
-                      )}
-                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#F5F2EB] hover:text-[#EAB308] cursor-pointer">
-                        <Upload className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
-                        {uploadingTarget === 'cover'
-                          ? 'Mengunggah Sampul...'
-                          : 'Unggah Foto Sampul'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          disabled={uploadingTarget === 'cover'}
-                          onChange={handleTrackCoverUpload}
-                          className="sr-only"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-[#D6CFC2]">
-                    Lirik Lagu
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={trackForm.lyrics}
-                    onChange={(e) => setTrackForm({ ...trackForm, lyrics: e.target.value })}
-                    placeholder="Tulis lirik lagu lengkap di sini..."
-                    className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={saving || uploadingTarget === 'audio' || uploadingTarget === 'cover'}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Form Tambah / Edit Lagu */}
+                <form
+                  onSubmit={handleSaveTrack}
+                  className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4"
                 >
-                  {editingTrackId ? (
-                    <Check className="w-4 h-4" aria-hidden="true" />
-                  ) : (
-                    <Plus className="w-4 h-4" aria-hidden="true" />
-                  )}
-                  {editingTrackId ? 'Simpan Perubahan Lagu' : 'Tambah ke Katalog Streaming'}
-                </button>
-              </form>
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      {editingTrackId ? 'Edit Lagu Streaming' : 'Tambah Lagu Baru'}
+                    </h2>
+                    {editingTrackId && (
+                      <button
+                        type="button"
+                        onClick={resetTrackForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    )}
+                  </div>
 
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#2A3024] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
-                    Daftar Katalog ({filteredTracks.length})
-                  </h2>
-                  <div className="relative">
-                    <Search
-                      className="w-3.5 h-3.5 text-[#A8A092] absolute left-3 top-1/2 -translate-y-1/2"
-                      aria-hidden="true"
-                    />
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Judul Lagu *
+                    </label>
                     <input
-                      type="search"
-                      value={trackSearch}
-                      onChange={(e) => setTrackSearch(e.target.value)}
-                      placeholder="Cari judul lagu..."
-                      className="w-full sm:w-56 min-h-[36px] pl-8 pr-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      type="text"
+                      required
+                      value={trackForm.title}
+                      onChange={(e) => setTrackForm({ ...trackForm, title: e.target.value })}
+                      placeholder="Masukkan judul lagu..."
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                     />
                   </div>
-                </div>
 
-                <div className="divide-y divide-[#2A3024]">
-                  {filteredTracks.map((t) => (
-                    <div
-                      key={t.id}
-                      className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-[#171C14]"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={resolveAssetUrl(t.coverUrl)}
-                          alt={t.title}
-                          className="w-10 h-10 rounded-lg object-cover border border-[#2A3024] shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#F5F2EB] truncate">
-                            {t.title}
-                          </p>
-                          <p className="text-xs font-mono text-[#A8A092] truncate">
-                            {t.audioUrl ? 'Audio terunggah' : 'Audio bawaan'} ·{' '}
-                            {t.plays.toLocaleString('id-ID')} putar
-                          </p>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        File Audio (MP3 / WAV / M4A)
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[42px] px-3 py-2 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                        <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#EAB308] cursor-pointer">
+                          <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                          <span>
+                            {uploadingTarget === 'audio'
+                              ? `Mengunggah${uploadProgress !== null ? ` (${uploadProgress}%)` : '...'}`
+                              : trackForm.audioUrl
+                                ? 'Ganti File Audio'
+                                : 'Unggah File Audio'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.aac"
+                            disabled={uploadingTarget === 'audio'}
+                            onChange={handleTrackAudioUpload}
+                            className="sr-only"
+                          />
+                        </label>
+                        {trackForm.audioUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setTrackForm({ ...trackForm, audioUrl: '' })}
+                            className="ml-auto text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Foto Sampul Lagu
+                      </span>
+                      <div className="flex items-center gap-3 min-h-[42px] px-3 py-1.5 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                        {trackForm.coverUrl && (
+                          <img
+                            src={resolveAssetUrl(trackForm.coverUrl)}
+                            alt="Pratinjau sampul"
+                            className="w-8 h-8 rounded object-cover border border-[#2A3024] shrink-0"
+                          />
+                        )}
+                        <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#F5F2EB] hover:text-[#EAB308] cursor-pointer">
+                          <Upload className="w-3.5 h-3.5 text-[#EAB308] shrink-0" aria-hidden="true" />
+                          <span>
+                            {uploadingTarget === 'cover'
+                              ? 'Mengunggah...'
+                              : 'Unggah Foto Sampul'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingTarget === 'cover'}
+                            onChange={handleTrackCoverUpload}
+                            className="sr-only"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Lirik Lagu
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={trackForm.lyrics}
+                      onChange={(e) => setTrackForm({ ...trackForm, lyrics: e.target.value })}
+                      placeholder="Tulis lirik lagu di sini..."
+                      className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={saving || uploadingTarget === 'audio' || uploadingTarget === 'cover'}
+                    className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                  >
+                    {editingTrackId ? (
+                      <Check className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Plus className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {editingTrackId ? 'Simpan Perubahan Lagu' : 'Tambah ke Katalog'}
+                  </button>
+                </form>
+
+                {/* Right Column: Daftar Katalog Lagu */}
+                <div className="lg:col-span-7 rounded-xl border border-[#2A3024] bg-[#11150F] overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-[#2A3024] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      Daftar Katalog ({filteredTracks.length})
+                    </h2>
+                    <div className="relative">
+                      <Search
+                        className="w-3.5 h-3.5 text-[#A8A092] absolute left-3 top-1/2 -translate-y-1/2"
+                        aria-hidden="true"
+                      />
+                      <input
+                        type="search"
+                        value={trackSearch}
+                        onChange={(e) => setTrackSearch(e.target.value)}
+                        placeholder="Cari judul lagu..."
+                        className="w-full sm:w-52 min-h-[34px] pl-8 pr-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-[#2A3024]">
+                    {filteredTracks.map((t) => (
+                      <div
+                        key={t.id}
+                        className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-[#171C14]"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={resolveAssetUrl(t.coverUrl)}
+                            alt={t.title}
+                            className="w-10 h-10 rounded-lg object-cover border border-[#2A3024] shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-[#F5F2EB] truncate">
+                              {t.title}
+                            </p>
+                            <p className="text-[11px] font-mono text-[#A8A092] truncate">
+                              {t.audioUrl ? 'Audio terunggah' : 'Audio bawaan'} ·{' '}
+                              {t.plays.toLocaleString('id-ID')} putar
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => startEditTrack(t)}
+                            aria-label={`Edit lagu ${t.title}`}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTrack(t.id)}
+                            aria-label={`Hapus lagu ${t.title}`}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => startEditTrack(t)}
-                          aria-label={`Edit lagu ${t.title}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTrack(t.id)}
-                          aria-label={`Hapus lagu ${t.title}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* SECTION 4: JADWAL */}
+          {/* SECTION 4: JADWAL PANGGUNG */}
           {section === 'tours' && (
             <div className="space-y-6">
-              <form
-                onSubmit={handleSaveTour}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                    {editingTourId ? 'Edit Jadwal' : 'Tambah Jadwal Baru'}
-                  </h1>
-                  {editingTourId && (
-                    <button
-                      type="button"
-                      onClick={resetTourForm}
-                      className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      Batal Edit
-                    </button>
-                  )}
-                </div>
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Jadwal Panggung &amp; Pertunjukan
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Kelola agenda panggung mendatang. Jadwal yang sudah lewat otomatis berstatus Selesai.
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="date"
-                    required
-                    value={tourForm.date}
-                    onChange={(e) => {
-                      const nextDate = e.target.value;
-                      const past = isTourDatePast(nextDate);
-                      setTourForm((prev) => ({
-                        ...prev,
-                        date: nextDate,
-                        status: past
-                          ? 'Selesai'
-                          : isTourDatePast(prev.date) && prev.status === 'Selesai'
-                            ? 'Tersedia'
-                            : prev.status,
-                      }));
-                    }}
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    required
-                    value={tourForm.city}
-                    onChange={(e) => setTourForm({ ...tourForm, city: e.target.value })}
-                    placeholder="Kota (mis. Makassar)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={tourForm.country}
-                    onChange={(e) =>
-                      setTourForm({ ...tourForm, country: e.target.value })
-                    }
-                    placeholder="Negara"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="text"
-                    required
-                    value={tourForm.venue}
-                    onChange={(e) => setTourForm({ ...tourForm, venue: e.target.value })}
-                    placeholder="Nama Venue / Panggung"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={tourForm.stageTime}
-                    onChange={(e) =>
-                      setTourForm({ ...tourForm, stageTime: e.target.value })
-                    }
-                    placeholder="Jam Tampil"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={tourForm.priceLabel}
-                    onChange={(e) =>
-                      setTourForm({ ...tourForm, priceLabel: e.target.value })
-                    }
-                    placeholder="Harga Tiket"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <select
-                      value={normalizeTourStatus(tourForm.date, tourForm.status)}
-                      disabled={isTourDatePast(tourForm.date)}
-                      onChange={(e) =>
-                        setTourForm({ ...tourForm, status: e.target.value as TourStatus })
-                      }
-                      className="w-full min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] disabled:opacity-75"
-                    >
-                      <option value="Tersedia">Status: Tersedia</option>
-                      <option value="Terbatas">Status: Terbatas</option>
-                      <option value="Habis">Status: Habis</option>
-                      <option value="Selesai">Status: Selesai</option>
-                    </select>
-                    {isTourDatePast(tourForm.date) && (
-                      <p className="text-[11px] text-[#EAB308]">
-                        Tanggal sudah lewat — status otomatis berubah menjadi Selesai.
-                      </p>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Form Tambah / Edit Jadwal */}
+                <form
+                  onSubmit={handleSaveTour}
+                  className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      {editingTourId ? 'Edit Jadwal Panggung' : 'Tambah Jadwal Baru'}
+                    </h2>
+                    {editingTourId && (
+                      <button
+                        type="button"
+                        onClick={resetTourForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                      >
+                        Batal
+                      </button>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    value={tourForm.ticketUrl}
-                    onChange={(e) =>
-                      setTourForm({ ...tourForm, ticketUrl: e.target.value })
-                    }
-                    placeholder="URL Loket Tiket (opsional)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={tourForm.notes}
-                    onChange={(e) => setTourForm({ ...tourForm, notes: e.target.value })}
-                    placeholder="Catatan panggung"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
-                >
-                  {editingTourId ? (
-                    <Check className="w-4 h-4" aria-hidden="true" />
-                  ) : (
-                    <Plus className="w-4 h-4" aria-hidden="true" />
-                  )}
-                  {editingTourId ? 'Simpan Perubahan Jadwal' : 'Publikasikan Jadwal'}
-                </button>
-              </form>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Tanggal Tampil *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={tourForm.date}
+                        onChange={(e) => {
+                          const nextDate = e.target.value;
+                          const past = isTourDatePast(nextDate);
+                          setTourForm((prev) => ({
+                            ...prev,
+                            date: nextDate,
+                            status: past
+                              ? 'Selesai'
+                              : isTourDatePast(prev.date) && prev.status === 'Selesai'
+                                ? 'Tersedia'
+                                : prev.status,
+                          }));
+                        }}
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Kota *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={tourForm.city}
+                        onChange={(e) => setTourForm({ ...tourForm, city: e.target.value })}
+                        placeholder="Mis. Yogyakarta"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
 
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#2A3024] flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
-                    Daftar Pertunjukan ({filteredTours.length})
-                  </h2>
-                  <div className="inline-flex items-center gap-1 p-1 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                    {(
-                      [
-                        { id: 'all', label: 'Semua' },
-                        { id: 'upcoming', label: 'Akan Datang' },
-                        { id: 'past', label: 'Selesai' },
-                      ] as const
-                    ).map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setTourFilter(tab.id)}
-                        className={`px-3 py-1 text-xs font-medium rounded cursor-pointer ${
-                          tourFilter === tab.id
-                            ? 'bg-[#EAB308] text-[#090B08]'
-                            : 'text-[#A8A092] hover:text-[#F5F2EB]'
-                        }`}
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Nama Venue / Acara *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={tourForm.venue}
+                      onChange={(e) => setTourForm({ ...tourForm, venue: e.target.value })}
+                      placeholder="Nama panggung atau festival"
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Jam Tampil
+                      </label>
+                      <input
+                        type="text"
+                        value={tourForm.stageTime}
+                        onChange={(e) =>
+                          setTourForm({ ...tourForm, stageTime: e.target.value })
+                        }
+                        placeholder="20:30 WIB"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Harga / Info Tiket
+                      </label>
+                      <input
+                        type="text"
+                        value={tourForm.priceLabel}
+                        onChange={(e) =>
+                          setTourForm({ ...tourForm, priceLabel: e.target.value })
+                        }
+                        placeholder="Rp 75.000 / Gratis"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Status Jadwal
+                      </label>
+                      <select
+                        value={normalizeTourStatus(tourForm.date, tourForm.status)}
+                        disabled={isTourDatePast(tourForm.date)}
+                        onChange={(e) =>
+                          setTourForm({ ...tourForm, status: e.target.value as TourStatus })
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] disabled:opacity-75"
                       >
-                        {tab.label}
-                      </button>
+                        <option value="Tersedia">Tersedia</option>
+                        <option value="Terbatas">Terbatas</option>
+                        <option value="Habis">Habis</option>
+                        <option value="Selesai">Selesai</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Link Tiket (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        value={tourForm.ticketUrl}
+                        onChange={(e) =>
+                          setTourForm({ ...tourForm, ticketUrl: e.target.value })
+                        }
+                        placeholder="https://..."
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
+
+                  {isTourDatePast(tourForm.date) && (
+                    <p className="text-[11px] text-[#EAB308]">
+                      Tanggal sudah lewat — status otomatis diset menjadi Selesai.
+                    </p>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Catatan Panggung (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      value={tourForm.notes}
+                      onChange={(e) => setTourForm({ ...tourForm, notes: e.target.value })}
+                      placeholder="Keterangan singkat acara..."
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
+                  >
+                    {editingTourId ? (
+                      <Check className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Plus className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {editingTourId ? 'Simpan Jadwal' : 'Publikasikan Jadwal'}
+                  </button>
+                </form>
+
+                {/* Right Column: Daftar Pertunjukan */}
+                <div className="lg:col-span-7 rounded-xl border border-[#2A3024] bg-[#11150F] overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-[#2A3024] flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      Daftar Pertunjukan ({filteredTours.length})
+                    </h2>
+                    <div className="inline-flex items-center gap-1 p-1 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                      {(
+                        [
+                          { id: 'all', label: 'Semua' },
+                          { id: 'upcoming', label: 'Akan Datang' },
+                          { id: 'past', label: 'Selesai' },
+                        ] as const
+                      ).map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setTourFilter(tab.id)}
+                          className={`px-2.5 py-1 text-xs font-medium rounded cursor-pointer ${
+                            tourFilter === tab.id
+                              ? 'bg-[#EAB308] text-[#090B08]'
+                              : 'text-[#A8A092] hover:text-[#F5F2EB]'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-[#2A3024]">
+                    {filteredTours.map((t) => (
+                      <div
+                        key={t.id}
+                        className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#171C14]"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-[#F5F2EB] truncate">
+                            {t.venue} · {t.city}
+                          </p>
+                          <p className="text-[11px] font-mono text-[#A8A092] mt-0.5">
+                            {t.date} · {t.stageTime} · {t.priceLabel}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            aria-label={`Ubah status ${t.venue}`}
+                            value={t.status}
+                            disabled={isTourDatePast(t.date)}
+                            onChange={(e) =>
+                              handleQuickTourStatus(t.id, e.target.value as TourStatus)
+                            }
+                            className="min-h-[34px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] disabled:opacity-75"
+                          >
+                            <option value="Tersedia">Tersedia</option>
+                            <option value="Terbatas">Terbatas</option>
+                            <option value="Habis">Habis</option>
+                            <option value="Selesai">Selesai</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => startEditTour(t)}
+                            aria-label={`Edit jadwal ${t.venue}`}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTour(t.id)}
+                            aria-label={`Hapus jadwal ${t.venue}`}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="divide-y divide-[#2A3024]">
-                  {filteredTours.map((t) => (
-                    <div
-                      key={t.id}
-                      className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#171C14]"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#F5F2EB] truncate">
-                          {t.venue} · {t.city}
-                        </p>
-                        <p className="text-xs font-mono text-[#A8A092]">
-                          {t.date} · {t.stageTime} · {t.priceLabel}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <select
-                          aria-label={`Ubah status ${t.venue}`}
-                          value={t.status}
-                          disabled={isTourDatePast(t.date)}
-                          onChange={(e) =>
-                            handleQuickTourStatus(t.id, e.target.value as TourStatus)
-                          }
-                          className="min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] disabled:opacity-75"
-                        >
-                          <option value="Tersedia">Tersedia</option>
-                          <option value="Terbatas">Terbatas</option>
-                          <option value="Habis">Habis</option>
-                          <option value="Selesai">Selesai</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => startEditTour(t)}
-                          aria-label={`Edit jadwal ${t.venue}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTour(t.id)}
-                          aria-label={`Hapus jadwal ${t.venue}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
@@ -3772,447 +3480,667 @@ export function AdminDashboard({
           {/* SECTION 5: GALERI FOTO & VIDEO */}
           {section === 'gallery' && (
             <div className="space-y-6">
-              <form
-                onSubmit={handleSavePhoto}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                    {editingPhotoId
-                      ? 'Edit Foto / Video Galeri'
-                      : 'Unggah Foto atau Video Galeri Baru'}
-                  </h1>
-                  {editingPhotoId && (
-                    <button
-                      type="button"
-                      onClick={resetPhotoForm}
-                      className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      Batal Edit
-                    </button>
-                  )}
-                </div>
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Galeri Foto &amp; Video Dokumentasi
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Unggah dokumentasi panggung, studio, atau backstage dalam format foto maupun video.
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    required
-                    value={photoForm.title}
-                    onChange={(e) =>
-                      setPhotoForm({ ...photoForm, title: e.target.value })
-                    }
-                    placeholder="Judul Dokumentasi"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <select
-                    value={photoForm.category}
-                    onChange={(e) =>
-                      setPhotoForm({
-                        ...photoForm,
-                        category: e.target.value as GalleryCategory,
-                      })
-                    }
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  >
-                    <option value="Panggung">Kategori: Panggung</option>
-                    <option value="Studio">Kategori: Studio</option>
-                    <option value="Backstage">Kategori: Backstage</option>
-                  </select>
-                </div>
-
-                <div className="rounded-xl border border-dashed border-[#2A3024] bg-[#090B08] p-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <label className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer">
-                      <Upload className="w-4 h-4" aria-hidden="true" />
-                      {uploadingTarget === 'gallery'
-                        ? 'Mengunggah Media...'
-                        : photoForm.imageUrl
-                          ? 'Ganti Foto / Video'
-                          : 'Pilih File Foto atau Video'}
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        disabled={uploadingTarget === 'gallery'}
-                        onChange={handleGalleryMediaUpload}
-                        className="sr-only"
-                      />
-                    </label>
-                    <span className="text-xs text-[#A8A092]">
-                      Mendukung Foto &amp; Video (tanpa batas ukuran file)
-                    </span>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Form Unggah / Edit Media */}
+                <form
+                  onSubmit={handleSavePhoto}
+                  className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      {editingPhotoId ? 'Edit Media Galeri' : 'Unggah Media Baru'}
+                    </h2>
+                    {editingPhotoId && (
+                      <button
+                        type="button"
+                        onClick={resetPhotoForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    )}
                   </div>
 
-                  {photoForm.imageUrl && (
-                    <div className="flex items-center gap-4 pt-2 border-t border-[#2A3024]">
-                      {photoForm.mediaType === 'video' ? (
-                        <video
-                          src={resolveAssetUrl(photoForm.imageUrl)}
-                          controls
-                          playsInline
-                          className="h-28 w-44 rounded-lg object-cover border border-[#2A3024] bg-black"
-                        />
-                      ) : (
-                        <img
-                          src={resolveAssetUrl(photoForm.imageUrl)}
-                          alt="Pratinjau galeri"
-                          className="h-24 w-36 rounded-lg object-cover border border-[#2A3024]"
-                        />
-                      )}
-                      <div className="space-y-1 text-xs">
-                        <p className="font-semibold text-[#4ADE80]">
-                          {photoForm.mediaType === 'video'
-                            ? 'Video siap dipublikasikan'
-                            : 'Foto siap dipublikasikan'}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPhotoForm((prev) => ({
-                              ...prev,
-                              imageUrl: '',
-                              mediaType: 'image',
-                            }))
-                          }
-                          className="text-[#FCA5A5] hover:underline cursor-pointer"
-                        >
-                          Hapus file terpilih
-                        </button>
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Judul Dokumentasi *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={photoForm.title}
+                      onChange={(e) =>
+                        setPhotoForm({ ...photoForm, title: e.target.value })
+                      }
+                      placeholder="Mis. Event Soundrenaline"
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Kategori
+                    </label>
+                    <select
+                      value={photoForm.category}
+                      onChange={(e) =>
+                        setPhotoForm({
+                          ...photoForm,
+                          category: e.target.value as GalleryCategory,
+                        })
+                      }
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    >
+                      <option value="Panggung">Panggung</option>
+                      <option value="Studio">Studio</option>
+                      <option value="Backstage">Backstage</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <span className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      File Foto atau Video *
+                    </span>
+                    <div className="rounded-lg border border-[#2A3024] bg-[#090B08] p-3 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="inline-flex items-center gap-1.5 min-h-[36px] px-3 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>
+                            {uploadingTarget === 'gallery'
+                              ? 'Mengunggah...'
+                              : photoForm.imageUrl
+                                ? 'Ganti File'
+                                : 'Pilih Foto / Video'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            disabled={uploadingTarget === 'gallery'}
+                            onChange={handleGalleryMediaUpload}
+                            className="sr-only"
+                          />
+                        </label>
+                        {photoForm.imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPhotoForm((prev) => ({
+                                ...prev,
+                                imageUrl: '',
+                                mediaType: 'image',
+                              }))
+                            }
+                            className="text-xs text-[#FCA5A5] hover:underline cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        )}
                       </div>
+
+                      {photoForm.imageUrl && (
+                        <div className="flex items-center gap-3 pt-2 border-t border-[#2A3024]">
+                          {photoForm.mediaType === 'video' ? (
+                            <video
+                              src={resolveAssetUrl(photoForm.imageUrl)}
+                              controls
+                              playsInline
+                              className="h-16 w-24 rounded object-cover border border-[#2A3024] bg-black"
+                            />
+                          ) : (
+                            <img
+                              src={resolveAssetUrl(photoForm.imageUrl)}
+                              alt="Pratinjau galeri"
+                              className="h-16 w-24 rounded object-cover border border-[#2A3024]"
+                            />
+                          )}
+                          <span className="text-[11px] font-medium text-[#4ADE80]">
+                            {photoForm.mediaType === 'video'
+                              ? 'Video siap disimpan'
+                              : 'Foto siap disimpan'}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="text"
-                    value={photoForm.location}
-                    onChange={(e) =>
-                      setPhotoForm({ ...photoForm, location: e.target.value })
-                    }
-                    placeholder="Lokasi"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={photoForm.dateLabel}
-                    onChange={(e) =>
-                      setPhotoForm({ ...photoForm, dateLabel: e.target.value })
-                    }
-                    placeholder="Bulan & Tahun"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={photoForm.photographer}
-                    onChange={(e) =>
-                      setPhotoForm({ ...photoForm, photographer: e.target.value })
-                    }
-                    placeholder="Kredit Fotografer / Videografer"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Lokasi
+                      </label>
+                      <input
+                        type="text"
+                        value={photoForm.location}
+                        onChange={(e) =>
+                          setPhotoForm({ ...photoForm, location: e.target.value })
+                        }
+                        placeholder="Jakarta / Depok"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Bulan &amp; Tahun
+                      </label>
+                      <input
+                        type="text"
+                        value={photoForm.dateLabel}
+                        onChange={(e) =>
+                          setPhotoForm({ ...photoForm, dateLabel: e.target.value })
+                        }
+                        placeholder="November 2026"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
 
-                <label className="inline-flex items-center gap-2 text-xs text-[#D6CFC2] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={photoForm.featured}
-                    onChange={(e) =>
-                      setPhotoForm({ ...photoForm, featured: e.target.checked })
-                    }
-                    className="accent-[#EAB308]"
-                  />
-                  Jadikan media sorotan utama (Bento tile besar)
-                </label>
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Kredit Fotografer / Videografer
+                    </label>
+                    <input
+                      type="text"
+                      value={photoForm.photographer}
+                      onChange={(e) =>
+                        setPhotoForm({ ...photoForm, photographer: e.target.value })
+                      }
+                      placeholder="Tim Rasmalas"
+                      className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
 
-                <div>
+                  <label className="flex items-center gap-2 text-xs text-[#D6CFC2] cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={photoForm.featured}
+                      onChange={(e) =>
+                        setPhotoForm({ ...photoForm, featured: e.target.checked })
+                      }
+                      className="accent-[#EAB308]"
+                    />
+                    Jadikan sorotan utama (kartu besar)
+                  </label>
+
                   <button
                     type="submit"
                     disabled={saving || uploadingTarget === 'gallery'}
-                    className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                   >
                     {editingPhotoId ? (
                       <Check className="w-4 h-4" aria-hidden="true" />
                     ) : (
                       <Plus className="w-4 h-4" aria-hidden="true" />
                     )}
-                    {editingPhotoId ? 'Simpan Perubahan Media' : 'Tambahkan ke Galeri'}
+                    {editingPhotoId ? 'Simpan Perubahan' : 'Tambahkan ke Galeri'}
                   </button>
-                </div>
-              </form>
+                </form>
 
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
-                    Koleksi Foto &amp; Video ({filteredPhotos.length})
-                  </h2>
-                  <div className="inline-flex items-center gap-1 p-1 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                    {(['Semua', 'Panggung', 'Studio', 'Backstage'] as const).map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setGalleryFilter(cat)}
-                        className={`px-3 py-1 text-xs font-medium rounded cursor-pointer ${
-                          galleryFilter === cat
-                            ? 'bg-[#EAB308] text-[#090B08]'
-                            : 'text-[#A8A092] hover:text-[#F5F2EB]'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                {/* Right Column: Koleksi Galeri */}
+                <div className="lg:col-span-7 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      Koleksi Galeri ({filteredPhotos.length})
+                    </h2>
+                    <div className="inline-flex items-center gap-1 p-1 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                      {(['Semua', 'Panggung', 'Studio', 'Backstage'] as const).map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setGalleryFilter(cat)}
+                          className={`px-2.5 py-1 text-xs font-medium rounded cursor-pointer ${
+                            galleryFilter === cat
+                              ? 'bg-[#EAB308] text-[#090B08]'
+                              : 'text-[#A8A092] hover:text-[#F5F2EB]'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredPhotos.map((p) => {
-                    const isVideo =
-                      p.mediaType === 'video' ||
-                      /\.(mp4|webm|mov)(\?|$)/i.test(p.imageUrl);
-                    return (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-[#2A3024] bg-[#090B08] p-3"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-[#2A3024] shrink-0 bg-black">
-                            {isVideo ? (
-                              <>
-                                <video
+                  <div className="divide-y divide-[#2A3024]">
+                    {filteredPhotos.map((p) => {
+                      const isVideo =
+                        p.mediaType === 'video' ||
+                        /\.(mp4|webm|mov)(\?|$)/i.test(p.imageUrl);
+                      return (
+                        <div
+                          key={p.id}
+                          className="py-3 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#2A3024] shrink-0 bg-black">
+                              {isVideo ? (
+                                <>
+                                  <video
+                                    src={resolveAssetUrl(p.imageUrl)}
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <span className="absolute bottom-1 right-1 rounded bg-black/80 p-0.5 text-[#EAB308]">
+                                    <Film className="w-3 h-3" />
+                                  </span>
+                                </>
+                              ) : (
+                                <img
                                   src={resolveAssetUrl(p.imageUrl)}
-                                  muted
-                                  playsInline
-                                  preload="metadata"
+                                  alt={p.title}
+                                  referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover"
                                 />
-                                <span className="absolute bottom-1 right-1 rounded bg-black/80 p-0.5 text-[#EAB308]">
-                                  <Film className="w-3 h-3" />
-                                </span>
-                              </>
-                            ) : (
-                              <img
-                                src={resolveAssetUrl(p.imageUrl)}
-                                alt={p.title}
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover"
-                              />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              {p.featured && (
-                                <Star className="w-3.5 h-3.5 text-[#EAB308] fill-current shrink-0" />
                               )}
-                              <p className="text-sm font-semibold text-[#F5F2EB] truncate">
-                                {p.title}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                {p.featured && (
+                                  <Star className="w-3.5 h-3.5 text-[#EAB308] fill-current shrink-0" />
+                                )}
+                                <p className="text-xs font-semibold text-[#F5F2EB] truncate">
+                                  {p.title}
+                                </p>
+                              </div>
+                              <p className="text-[11px] text-[#A8A092] truncate mt-0.5">
+                                {isVideo ? 'Video' : 'Foto'} · {p.category} · {p.location} ·{' '}
+                                {p.dateLabel}
+                              </p>
+                              <p className="text-[11px] text-[#6E675B] truncate">
+                                Oleh {p.photographer}
                               </p>
                             </div>
-                            <p className="text-xs text-[#A8A092] truncate">
-                              {isVideo ? 'Video' : 'Foto'} · {p.category} · {p.location} ·{' '}
-                              {p.dateLabel}
-                            </p>
-                            <p className="text-xs text-[#787166] truncate">
-                              Oleh: {p.photographer}
-                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => startEditPhoto(p)}
+                              aria-label={`Edit media ${p.title}`}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePhoto(p.id)}
+                              aria-label={`Hapus media ${p.title}`}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => startEditPhoto(p)}
-                            aria-label={`Edit media ${p.title}`}
-                            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePhoto(p.id)}
-                            aria-label={`Hapus media ${p.title}`}
-                            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* SECTION 6: MEDIA SOSIAL REAL-TIME */}
+          {/* SECTION 6: MEDIA SOSIAL */}
           {section === 'social' && (
             <div className="space-y-6">
-              <form
-                ref={socialPostFormRef}
-                onSubmit={handlePublishSocialPost}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                    {editingPostId
-                      ? 'Edit Postingan Media Sosial'
-                      : 'Tambah & Siarkan Postingan Media Sosial'}
-                  </h1>
-                  {editingPostId && (
-                    <button
-                      type="button"
-                      onClick={resetSocialPostForm}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      Batal Edit
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <select
-                    value={postPlatform}
-                    onChange={(e) => setPostPlatform(e.target.value as SocialPlatform)}
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  >
-                    {Array.from(
-                      new Set([
-                        ...(channelsForm.length > 0
-                          ? channelsForm.map((c) => c.platform)
-                          : ['Instagram', 'YouTube', 'Spotify', 'TikTok']),
-                        postPlatform,
-                      ])
-                    ).map((plat) => (
-                      <option key={plat} value={plat}>
-                        {plat}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={postAuthorHandle}
-                    onChange={(e) => setPostAuthorHandle(e.target.value)}
-                    placeholder={`Akun / Handle (mis. ${
-                      channelsForm.find((c) => c.platform === postPlatform)?.handle ||
-                      '@rasmalas.official'
-                    })`}
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <div className="flex items-center gap-2 min-h-[40px] px-3 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                    <label className="inline-flex items-center gap-2 text-xs font-medium text-[#EAB308] cursor-pointer">
-                      <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                      {uploadingTarget === 'social'
-                        ? `Mengunggah${uploadProgress !== null ? ` (${uploadProgress}%)` : '...'}`
-                        : postMediaUrl
-                          ? 'Ganti Foto / Video'
-                          : 'Unggah Foto / Video (opsional)'}
-                      <input
-                        type="file"
-                        accept="image/*,video/mp4,video/webm,video/quicktime"
-                        disabled={uploadingTarget === 'social'}
-                        onChange={handleSocialMediaUpload}
-                        className="sr-only"
-                      />
-                    </label>
-                    {postMediaUrl && (
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Postingan Sosial, Sapaan &amp; Kanal Resmi
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Kelola kabar media sosial, moderasi pesan penggemar, dan tautan kanal sosial resmi band.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Form Tambah / Edit Postingan */}
+                <form
+                  ref={socialPostFormRef}
+                  onSubmit={handlePublishSocialPost}
+                  className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      {editingPostId ? 'Edit Postingan' : 'Tambah Postingan Baru'}
+                    </h2>
+                    {editingPostId && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setPostMediaUrl('');
-                          setPostMediaType('image');
-                        }}
-                        className="ml-auto text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                        onClick={resetSocialPostForm}
+                        className="text-xs text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
                       >
-                        Hapus
+                        Batal
                       </button>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    value={postExternalUrl}
-                    onChange={(e) => setPostExternalUrl(e.target.value)}
-                    placeholder="Tautan Postingan Asli (opsional)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                </div>
-                {postMediaUrl && (
-                  <div className="flex items-center gap-3 p-2.5 rounded-lg border border-[#2A3024] bg-[#090B08]">
-                    {postMediaType === 'video' ? (
-                      <video
-                        src={resolveAssetUrl(postMediaUrl)}
-                        controls
-                        playsInline
-                        className="h-20 w-36 rounded object-cover bg-black"
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Platform
+                      </label>
+                      <select
+                        value={postPlatform}
+                        onChange={(e) => setPostPlatform(e.target.value as SocialPlatform)}
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      >
+                        {Array.from(
+                          new Set([
+                            ...(channelsForm.length > 0
+                              ? channelsForm.map((c) => c.platform)
+                              : ['Instagram', 'YouTube', 'Spotify', 'TikTok']),
+                            postPlatform,
+                          ])
+                        ).map((plat) => (
+                          <option key={plat} value={plat}>
+                            {plat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Akun / Handle
+                      </label>
+                      <input
+                        type="text"
+                        value={postAuthorHandle}
+                        onChange={(e) => setPostAuthorHandle(e.target.value)}
+                        placeholder={
+                          channelsForm.find((c) => c.platform === postPlatform)?.handle ||
+                          '@rasmalas.official'
+                        }
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                       />
-                    ) : (
-                      <img
-                        src={resolveAssetUrl(postMediaUrl)}
-                        alt="Pratinjau lampiran"
-                        className="h-20 w-32 rounded object-cover"
-                      />
-                    )}
-                    <span className="text-xs text-[#4ADE80]">
-                      {postMediaType === 'video'
-                        ? 'Lampiran video siap disimpan.'
-                        : 'Lampiran foto siap disimpan.'}
-                    </span>
+                    </div>
                   </div>
-                )}
-                <textarea
-                  required
-                  rows={3}
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  placeholder="Tulis pengumuman rilis, jadwal soundcheck, atau kabar studio..."
-                  className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                />
-                <div className="flex flex-wrap items-center gap-3">
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Isi Pengumuman / Postingan *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={postContent}
+                      onChange={(e) => setPostContent(e.target.value)}
+                      placeholder="Tulis kabar terbaru, rilis lagu, atau info panggung..."
+                      className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    />
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between min-h-[38px] px-3 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                      <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#EAB308] cursor-pointer">
+                        <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>
+                          {uploadingTarget === 'social'
+                            ? `Mengunggah${uploadProgress !== null ? ` (${uploadProgress}%)` : '...'}`
+                            : postMediaUrl
+                              ? 'Ganti Foto / Video'
+                              : 'Lampiran Foto / Video (Opsional)'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*,video/mp4,video/webm,video/quicktime"
+                          disabled={uploadingTarget === 'social'}
+                          onChange={handleSocialMediaUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                      {postMediaUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPostMediaUrl('');
+                            setPostMediaType('image');
+                          }}
+                          className="text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+
+                    {postMediaUrl && (
+                      <div className="flex items-center gap-2.5 p-2 rounded-lg border border-[#2A3024] bg-[#090B08]">
+                        {postMediaType === 'video' ? (
+                          <video
+                            src={resolveAssetUrl(postMediaUrl)}
+                            controls
+                            playsInline
+                            className="h-14 w-24 rounded object-cover bg-black"
+                          />
+                        ) : (
+                          <img
+                            src={resolveAssetUrl(postMediaUrl)}
+                            alt="Pratinjau lampiran"
+                            className="h-14 w-20 rounded object-cover"
+                          />
+                        )}
+                        <span className="text-[11px] text-[#4ADE80]">
+                          Lampiran siap disimpan
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Tautan Postingan Asli (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        value={postExternalUrl}
+                        onChange={(e) => setPostExternalUrl(e.target.value)}
+                        placeholder="https://instagram.com/p/..."
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={saving || uploadingTarget === 'social'}
-                    className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                   >
                     {editingPostId ? (
                       <>
                         <Check className="w-4 h-4" aria-hidden="true" />
-                        Simpan Perubahan Postingan
+                        Simpan Perubahan
                       </>
                     ) : (
                       <>
                         <Plus className="w-4 h-4" aria-hidden="true" />
-                        Tambah & Siarkan Postingan
+                        Tambah &amp; Siarkan Postingan
                       </>
                     )}
                   </button>
-                  {editingPostId && (
-                    <button
-                      type="button"
-                      onClick={resetSocialPostForm}
-                      className="min-h-[42px] px-4 py-2 text-xs font-medium text-[#A8A092] border border-[#2A3024] rounded-lg hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      Batal
-                    </button>
-                  )}
-                </div>
-              </form>
+                </form>
 
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="font-display text-lg font-bold text-[#F5F2EB]">
-                    Konfigurasi Akun Media Sosial Resmi
-                  </h2>
+                {/* Right Column: Arsip Postingan & Moderasi Sapaan */}
+                <div className="lg:col-span-7 space-y-5">
+                  <div className="rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                        Arsip Postingan ({bandState.socialPosts.length})
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetSocialPostForm();
+                          socialPostFormRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 min-h-[30px] px-2.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                        Tambah
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {bandState.socialPosts.length === 0 ? (
+                        <p className="text-xs text-[#A8A092] py-4 text-center">
+                          Belum ada postingan media sosial.
+                        </p>
+                      ) : (
+                        bandState.socialPosts.map((p) => (
+                          <div
+                            key={p.id}
+                            className={`flex items-start justify-between gap-3 rounded-lg border bg-[#090B08] p-3 ${
+                              editingPostId === p.id
+                                ? 'border-[#EAB308]'
+                                : 'border-[#2A3024]'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#EAB308]">
+                                {p.platform} · {p.authorHandle} · {p.likes} suka
+                              </p>
+                              <p className="text-xs text-[#D6CFC2] mt-1 line-clamp-2">
+                                {p.content}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => startEditSocialPost(p)}
+                                aria-label="Edit postingan"
+                                className="h-8 w-8 inline-flex items-center justify-center rounded text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSocialPost(p.id)}
+                                aria-label="Hapus postingan"
+                                className="h-8 w-8 inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-3">
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      Moderasi Dinding Sapaan ({bandState.shoutouts.length})
+                    </h2>
+                    <div className="space-y-2">
+                      {bandState.shoutouts.length === 0 ? (
+                        <p className="text-xs text-[#A8A092] py-2">
+                          Belum ada pesan sapaan dari pengunjung.
+                        </p>
+                      ) : (
+                        bandState.shoutouts.map((s) => (
+                          <div
+                            key={s.id}
+                            className="flex items-start justify-between gap-3 rounded-lg border border-[#2A3024] bg-[#090B08] p-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#F5F2EB]">
+                                {s.senderName} · {s.city}
+                              </p>
+                              <p className="text-xs text-[#A8A092] mt-0.5">{s.message}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteShoutout(s.id)}
+                              aria-label="Hapus sapaan"
+                              className="h-8 w-8 inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Konfigurasi Kanal Sosial Resmi */}
+              <div className="rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                      Konfigurasi Akun &amp; Kanal Sosial Resmi ({channelsForm.length})
+                    </h2>
+                    <p className="text-xs text-[#A8A092] mt-0.5">
+                      Atur tautan akun sosial resmi yang tampil di seksi Media Sosial dan Footer.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={handleSaveChannels}
                     disabled={saving}
-                    className="min-h-[38px] px-4 py-1.5 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 min-h-[36px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
                   >
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" />
                     Simpan Kanal
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <form
+                  onSubmit={handleAddChannel}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 pt-1"
+                >
+                  <input
+                    type="text"
+                    required
+                    value={newChannelForm.platform}
+                    onChange={(e) =>
+                      setNewChannelForm({ ...newChannelForm, platform: e.target.value })
+                    }
+                    placeholder="Nama Platform (mis. TikTok)"
+                    className="lg:col-span-3 min-h-[36px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
+                  <input
+                    type="text"
+                    value={newChannelForm.handle}
+                    onChange={(e) =>
+                      setNewChannelForm({ ...newChannelForm, handle: e.target.value })
+                    }
+                    placeholder="Handle (@rasmalas)"
+                    className="lg:col-span-3 min-h-[36px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
+                  <input
+                    type="url"
+                    required
+                    value={newChannelForm.url}
+                    onChange={(e) =>
+                      setNewChannelForm({ ...newChannelForm, url: e.target.value })
+                    }
+                    placeholder="URL Profil (https://...)"
+                    className="lg:col-span-4 min-h-[36px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="lg:col-span-2 inline-flex items-center justify-center gap-1.5 min-h-[36px] px-3 text-xs font-semibold bg-[#1A2016] border border-[#EAB308]/60 text-[#EAB308] rounded-lg hover:bg-[#EAB308] hover:text-[#090B08] cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Tambah Kanal
+                  </button>
+                </form>
+
+                <div className="divide-y divide-[#2A3024]">
                   {channelsForm.map((ch, idx) => (
                     <div
                       key={ch.platform}
-                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center border-b border-[#2A3024] pb-3 last:border-b-0 last:pb-0"
+                      className="py-2.5 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center"
                     >
                       <label className="sm:col-span-2 flex items-center gap-2 text-xs font-semibold text-[#F5F2EB] cursor-pointer">
                         <input
@@ -4236,7 +4164,7 @@ export function AdminDashboard({
                           setChannelsForm(next);
                         }}
                         placeholder="Handle"
-                        className="sm:col-span-3 min-h-[38px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                        className="sm:col-span-3 min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                       />
                       <input
                         type="text"
@@ -4246,8 +4174,8 @@ export function AdminDashboard({
                           next[idx] = { ...ch, followersLabel: e.target.value };
                           setChannelsForm(next);
                         }}
-                        placeholder="Jumlah Pengikut"
-                        className="sm:col-span-3 min-h-[38px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                        placeholder="Label Pengikut"
+                        className="sm:col-span-3 min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                       />
                       <input
                         type="url"
@@ -4258,125 +4186,20 @@ export function AdminDashboard({
                           setChannelsForm(next);
                         }}
                         placeholder="URL Profil"
-                        className="sm:col-span-3 min-h-[38px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                        className="sm:col-span-3 min-h-[36px] px-2.5 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                       />
                       <div className="sm:col-span-1 flex justify-end">
                         <button
                           type="button"
                           onClick={() => void handleDeleteChannel(ch.platform)}
                           aria-label={`Hapus kanal ${ch.platform}`}
-                          className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[#A8A092] hover:text-[#F87171] cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-[#F5F2EB]">
-                      Arsip Postingan ({bandState.socialPosts.length})
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetSocialPostForm();
-                        socialPostFormRef.current?.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'start',
-                        });
-                      }}
-                      className="inline-flex items-center gap-1.5 min-h-[32px] px-3 py-1 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                      Tambah
-                    </button>
-                  </div>
-                  <div className="space-y-2.5">
-                    {bandState.socialPosts.length === 0 ? (
-                      <p className="text-xs text-[#A8A092] py-4 text-center border border-dashed border-[#2A3024] rounded-lg">
-                        Belum ada postingan media sosial.
-                      </p>
-                    ) : (
-                      bandState.socialPosts.map((p) => (
-                        <div
-                          key={p.id}
-                          className={`flex items-start justify-between gap-3 rounded-lg border bg-[#090B08] p-3 ${
-                            editingPostId === p.id
-                              ? 'border-[#EAB308]'
-                              : 'border-[#2A3024]'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-[#EAB308]">
-                              {p.platform} · {p.authorHandle} · {p.likes} suka
-                            </p>
-                            <p className="text-xs text-[#D6CFC2] mt-1 line-clamp-2">
-                              {p.content}
-                            </p>
-                            {p.mediaUrl && (
-                              <p className="text-[11px] text-[#A8A092] mt-1">
-                                Lampiran: {p.mediaType === 'video' ? 'Video' : 'Foto'}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => startEditSocialPost(p)}
-                              aria-label="Edit postingan"
-                              title="Edit postingan"
-                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#EAB308] cursor-pointer"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSocialPost(p.id)}
-                              aria-label="Hapus postingan"
-                              title="Hapus postingan"
-                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-3">
-                  <h3 className="text-sm font-semibold text-[#F5F2EB]">
-                    Moderasi Dinding Sapaan ({bandState.shoutouts.length})
-                  </h3>
-                  <div className="space-y-2.5">
-                    {bandState.shoutouts.map((s) => (
-                      <div
-                        key={s.id}
-                        className="flex items-start justify-between gap-3 rounded-lg border border-[#2A3024] bg-[#090B08] p-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-[#F5F2EB]">
-                            {s.senderName} · {s.city}
-                          </p>
-                          <p className="text-xs text-[#A8A092] mt-1">{s.message}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteShoutout(s.id)}
-                          aria-label="Hapus sapaan"
-                          className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer shrink-0"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
@@ -4385,166 +4208,165 @@ export function AdminDashboard({
           {/* SECTION 7: PENGATURAN AKUN ADMIN */}
           {section === 'settings' && (
             <div className="space-y-6">
-              {/* Ringkasan Akun & Koneksi */}
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 sm:p-6 space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                      Pengaturan Akun Admin
-                    </h1>
-                    <p className="text-xs text-[#A8A092] mt-1">
-                      Kelola keamanan kata sandi dan informasi sesi akun admin Anda.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm border-t border-[#2A3024] pt-4">
-                  <div>
-                    <p className="text-xs text-[#A8A092]">Username Aktif</p>
-                    <p className="font-mono text-[#EAB308] mt-0.5 break-all">
-                      {adminUsername || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#A8A092]">Nama Admin</p>
-                    <p className="text-[#F5F2EB] mt-0.5 break-words">
-                      {adminFullName || 'Admin Rasmalas'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#A8A092]">Email Sesi Aktif</p>
-                    <p className="font-mono text-[#F5F2EB] mt-0.5 break-all">
-                      {adminEmail || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#A8A092]">Status Sinkronisasi</p>
-                    <p className="font-mono text-[#4ADE80] mt-0.5">
-                      {backendMode === 'supabase'
-                        ? 'Supabase Realtime Aktif'
-                        : wsConnected
-                          ? `Terhubung (${onlineCount} klien)`
-                          : 'Menyambungkan...'}
-                    </p>
-                  </div>
-                </div>
+              <div>
+                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                  Pengaturan Akun Admin
+                </h1>
+                <p className="text-xs text-[#A8A092] mt-1">
+                  Kelola keamanan kata sandi dan informasi sesi akun admin Anda.
+                </p>
               </div>
 
-              {/* Reset / Ubah Kata Sandi */}
-              <form
-                onSubmit={handleSaveNewPassword}
-                className="max-w-2xl rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 sm:p-6 space-y-4"
-              >
-                <div className="flex items-center gap-2.5">
-                  <KeyRound className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
-                  <div>
-                    <h2 className="font-display text-base font-bold text-[#F5F2EB]">
-                      Reset / Ubah Kata Sandi Admin
-                    </h2>
-                    <p className="text-xs text-[#A8A092]">
-                      Tetapkan kata sandi baru secara langsung atau kirim tautan reset ke email.
-                    </p>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Info Sesi Aktif */}
+                <div className="lg:col-span-5 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4">
+                  <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                    Informasi Akun Aktif
+                  </h2>
+                  <div className="divide-y divide-[#2A3024] text-xs">
+                    <div className="py-2.5 flex items-center justify-between gap-3">
+                      <span className="text-[#A8A092]">Username</span>
+                      <span className="font-mono font-semibold text-[#EAB308]">
+                        {adminUsername || '-'}
+                      </span>
+                    </div>
+                    <div className="py-2.5 flex items-center justify-between gap-3">
+                      <span className="text-[#A8A092]">Nama Admin</span>
+                      <span className="font-medium text-[#F5F2EB]">
+                        {adminFullName || 'Admin Rasmalas'}
+                      </span>
+                    </div>
+                    <div className="py-2.5 flex items-center justify-between gap-3">
+                      <span className="text-[#A8A092]">Email Sesi</span>
+                      <span className="font-mono text-[#F5F2EB] truncate">
+                        {adminEmail || '-'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="admin-new-password"
-                    className="block text-xs font-medium text-[#D6CFC2]"
-                  >
-                    Kata Sandi Baru
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="admin-new-password"
-                      type={showNewPassword ? 'text' : 'password'}
-                      required
-                      minLength={6}
-                      autoComplete="new-password"
-                      value={passwordForm.newPassword}
-                      onChange={(e) =>
-                        setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
-                      }
-                      placeholder="Minimal 6 karakter"
-                      className="w-full min-h-[42px] pl-3.5 pr-11 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword((v) => !v)}
-                      aria-label={showNewPassword ? 'Sembunyikan sandi' : 'Lihat sandi'}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      {showNewPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
+                {/* Right Column: Reset / Ubah Kata Sandi */}
+                <form
+                  onSubmit={handleSaveNewPassword}
+                  className="lg:col-span-7 rounded-xl border border-[#2A3024] bg-[#11150F] p-5 space-y-4"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <KeyRound className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                    <div>
+                      <h2 className="text-sm font-semibold text-[#F5F2EB]">
+                        Ubah Kata Sandi Admin
+                      </h2>
+                      <p className="text-xs text-[#A8A092]">
+                        Tetapkan kata sandi baru secara langsung atau kirim tautan reset ke email.
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="admin-confirm-password"
-                    className="block text-xs font-medium text-[#D6CFC2]"
-                  >
-                    Konfirmasi Kata Sandi Baru
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="admin-confirm-password"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      minLength={6}
-                      autoComplete="new-password"
-                      value={passwordForm.confirmPassword}
-                      onChange={(e) =>
-                        setPasswordForm((prev) => ({
-                          ...prev,
-                          confirmPassword: e.target.value,
-                        }))
-                      }
-                      placeholder="Ulangi kata sandi baru"
-                      className="w-full min-h-[42px] pl-3.5 pr-11 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword((v) => !v)}
-                      aria-label={showConfirmPassword ? 'Sembunyikan konfirmasi sandi' : 'Lihat konfirmasi sandi'}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label
+                        htmlFor="admin-new-password"
+                        className="block text-xs font-medium text-[#D6CFC2] mb-1"
+                      >
+                        Kata Sandi Baru
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="admin-new-password"
+                          type={showNewPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          autoComplete="new-password"
+                          value={passwordForm.newPassword}
+                          onChange={(e) =>
+                            setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                          }
+                          placeholder="Minimal 6 karakter"
+                          className="w-full min-h-[38px] pl-3 pr-9 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword((v) => !v)}
+                          aria-label={showNewPassword ? 'Sembunyikan sandi' : 'Lihat sandi'}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                        >
+                          {showNewPassword ? (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="admin-confirm-password"
+                        className="block text-xs font-medium text-[#D6CFC2] mb-1"
+                      >
+                        Konfirmasi Kata Sandi Baru
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="admin-confirm-password"
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          autoComplete="new-password"
+                          value={passwordForm.confirmPassword}
+                          onChange={(e) =>
+                            setPasswordForm((prev) => ({
+                              ...prev,
+                              confirmPassword: e.target.value,
+                            }))
+                          }
+                          placeholder="Ulangi kata sandi baru"
+                          className="w-full min-h-[38px] pl-3 pr-9 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((v) => !v)}
+                          aria-label={
+                            showConfirmPassword
+                              ? 'Sembunyikan konfirmasi sandi'
+                              : 'Lihat konfirmasi sandi'
+                          }
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                <div className="pt-1 flex flex-wrap items-center gap-3">
-                  <button
-                    type="submit"
-                    disabled={passwordBusy}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                  >
-                    <Lock className="w-4 h-4" aria-hidden="true" />
-                    {passwordBusy ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}
-                  </button>
-
-                  {backendMode === 'supabase' && (
+                  <div className="pt-1 flex flex-wrap items-center gap-2.5">
                     <button
-                      type="button"
-                      disabled={resetEmailBusy}
-                      onClick={() => void handleSendResetEmailFromSettings()}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[42px] px-4 py-2 text-xs font-medium border border-[#2A3024] text-[#D6CFC2] rounded-lg hover:border-[#EAB308] hover:text-[#F5F2EB] disabled:opacity-50 cursor-pointer"
+                      type="submit"
+                      disabled={passwordBusy}
+                      className="inline-flex items-center justify-center gap-1.5 min-h-[38px] px-4 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                     >
-                      <Mail className="w-4 h-4" aria-hidden="true" />
-                      {resetEmailBusy ? 'Mengirim...' : 'Kirim Link Reset ke Email'}
+                      <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                      {passwordBusy ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}
                     </button>
-                  )}
-                </div>
-              </form>
+
+                    {backendMode === 'supabase' && (
+                      <button
+                        type="button"
+                        disabled={resetEmailBusy}
+                        onClick={() => void handleSendResetEmailFromSettings()}
+                        className="inline-flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 text-xs font-medium border border-[#2A3024] text-[#D6CFC2] rounded-lg hover:border-[#EAB308] hover:text-[#F5F2EB] disabled:opacity-50 cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5" aria-hidden="true" />
+                        {resetEmailBusy ? 'Mengirim...' : 'Kirim Link Reset ke Email'}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
             </div>
           )}
         </main>

@@ -232,7 +232,7 @@ export async function sbInsertShoutout(
   message: string
 ): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('fan_shoutouts').insert({
     id: `sh-${Date.now().toString(36)}`,
     sender_name: senderName.trim(),
@@ -266,12 +266,12 @@ export async function sbAdminLogin(
 ): Promise<{ email: string; username: string; fullName: string; token: string }> {
   if (isLikelySecretApiKey(SUPABASE_ANON_KEY)) {
     throw new Error(
-      'VITE_SUPABASE_ANON_KEY masih terisi Secret/service_role key. Ganti dengan Publishable key (sb_publishable_...) atau anon public key di Environment Variables, lalu Redeploy tanpa Build Cache.'
+      'Konfigurasi kunci API publik masih menggunakan Secret key. Ganti dengan Publishable / anon public key pada Environment Variables, lalu Redeploy.'
     );
   }
   const client = getBrowserSupabaseClient();
   if (!client) {
-    throw new Error('Supabase belum dikonfigurasi untuk mode statis.');
+    throw new Error('Koneksi database belum dikonfigurasi.');
   }
 
   let resolvedEmail = loginInput.trim();
@@ -293,10 +293,10 @@ export async function sbAdminLogin(
     const rawMsg = error?.message || '';
     if (rawMsg.toLowerCase().includes('secret api key')) {
       throw new Error(
-        'VITE_SUPABASE_ANON_KEY masih terisi Secret/service_role key. Ganti dengan Publishable key (sb_publishable_...) atau anon public key, lalu Redeploy tanpa Build Cache.'
+        'Konfigurasi kunci API publik masih menggunakan Secret key. Ganti dengan Publishable / anon public key, lalu Redeploy.'
       );
     }
-    throw new Error(rawMsg || 'Email/username atau kata sandi admin Supabase tidak sesuai.');
+    throw new Error(rawMsg || 'Email/username atau kata sandi admin tidak sesuai.');
   }
 
   const { data: adminRow, error: adminErr } = await client
@@ -307,7 +307,7 @@ export async function sbAdminLogin(
 
   if (adminErr || !adminRow) {
     await client.auth.signOut();
-    throw new Error('Akun ini belum terdaftar di tabel admin_users Supabase.');
+    throw new Error('Akun ini belum terdaftar sebagai admin yang memiliki akses.');
   }
 
   return {
@@ -385,7 +385,7 @@ export async function sbUpdateOwnAdminProfile(payload: {
   emailConfirmationSent?: boolean;
 }> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
   const { data: sessionData } = await client.auth.getSession();
   const currentEmail = sessionData.session?.user?.email || '';
@@ -429,7 +429,7 @@ export async function sbUpdateOwnAdminProfile(payload: {
 
 export async function sbUpdateAdminPassword(newPassword: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   if (newPassword.length < 6) {
     throw new Error('Kata sandi baru minimal 6 karakter.');
   }
@@ -441,7 +441,7 @@ export async function sbSendPasswordResetEmail(
   loginOrEmail: string
 ): Promise<{ email: string }> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
   let targetEmail = loginOrEmail.trim();
   if (!targetEmail) {
@@ -452,7 +452,7 @@ export async function sbSendPasswordResetEmail(
       login_input: targetEmail,
     });
     if (rpcErr || !rpcEmail) {
-      throw new Error('Username admin tidak ditemukan di Supabase.');
+      throw new Error('Username admin tidak ditemukan.');
     }
     targetEmail = String(rpcEmail).trim();
   }
@@ -492,9 +492,9 @@ function encodeTusMetadata(value: string): string {
 function formatSupabaseUploadSizeError(fileSizeBytes: number, rawMessage: string): string {
   const sizeMb = (fileSizeBytes / (1024 * 1024)).toFixed(1);
   if (/maximum allowed size|payload too large|entity too large|413/i.test(rawMessage)) {
-    return `Gagal upload (${sizeMb} MB): Server Supabase Storage menolak ukuran file ini. Pastikan di Supabase SQL Editor sudah dijalankan "UPDATE storage.buckets SET file_size_limit = NULL WHERE id = 'rasmalas-media';" dan naikkan "Global file size limit" di Supabase Dashboard → Storage → Settings (paket Free Supabase membatasi maksimal 50 MB per file di level server Supabase; untuk >50 MB gunakan paket Pro atau kompres WAV ke MP3/M4A).`;
+    return `Gagal upload (${sizeMb} MB): Server penyimpanan menolak ukuran file ini. Periksa batas ukuran bucket & pengaturan global file size limit di server penyimpanan media (paket gratis umumnya dibatasi maksimal 50 MB per file; untuk >50 MB naikkan limit server atau kompres WAV ke MP3/M4A).`;
   }
-  return `Gagal upload ke Supabase Storage: ${rawMessage}`;
+  return `Gagal upload ke penyimpanan media: ${rawMessage}`;
 }
 
 async function uploadMediaViaTus(
@@ -538,7 +538,7 @@ async function uploadMediaViaTus(
 
   const location = createRes.headers.get('location') || createRes.headers.get('Location');
   if (!location) {
-    throw new Error('Server upload Supabase tidak mengembalikan URL lokasi TUS.');
+    throw new Error('Server upload tidak mengembalikan URL lokasi TUS.');
   }
 
   const uploadUrl = new URL(location, tusEndpoint).toString();
@@ -581,7 +581,7 @@ async function uploadMediaViaTus(
         lastError = new Error(errText || `HTTP ${patchRes.status}`);
       } catch (err) {
         lastError = err instanceof Error ? err : new Error('Koneksi chunk upload terputus.');
-        if (/Batas|Server Supabase Storage menolak/i.test(lastError.message)) {
+        if (/Server penyimpanan menolak/i.test(lastError.message)) {
           throw lastError;
         }
       }
@@ -610,7 +610,7 @@ export async function sbUploadMedia(
   onProgress?: (percent: number) => void
 ): Promise<{ url: string; mediaType: 'image' | 'video' | 'audio' }> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
   const safeFolder = folder.replace(/[^a-z0-9-_]/gi, '') || 'misc';
   const extMatch = file.name.match(/\.[a-z0-9]+$/i);
@@ -650,7 +650,7 @@ export async function sbUploadMedia(
 // Admin CRUD
 export async function sbSaveProfileAndMembers(profile: BandProfile): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
   const { error: profErr } = await client.from('band_profile').upsert(
     {
@@ -716,7 +716,7 @@ export async function sbSaveProfileAndMembers(profile: BandProfile): Promise<voi
 
 export async function sbUpsertSiteSection(sec: SiteSection): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('site_sections').upsert(
     {
       id: sec.id,
@@ -742,7 +742,7 @@ export async function sbUpsertSiteSection(sec: SiteSection): Promise<void> {
 
 export async function sbReorderSiteSections(sections: SiteSection[]): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('site_sections').upsert(
     sections.map((s, idx) => ({
       id: s.id,
@@ -768,14 +768,14 @@ export async function sbReorderSiteSections(sections: SiteSection[]): Promise<vo
 
 export async function sbDeleteSiteSection(id: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('site_sections').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function sbUpsertTrack(track: Track): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('tracks').upsert(
     {
       id: track.id,
@@ -799,14 +799,14 @@ export async function sbUpsertTrack(track: Track): Promise<void> {
 
 export async function sbDeleteTrack(id: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('tracks').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function sbUpsertTour(tour: TourDate): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('tours').upsert(
     {
       id: tour.id,
@@ -828,7 +828,7 @@ export async function sbUpsertTour(tour: TourDate): Promise<void> {
 
 export async function sbDeleteTour(id: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('tours').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
@@ -838,7 +838,7 @@ export async function sbUpsertGalleryPhoto(
   clearFeaturedFirst: boolean
 ): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   if (clearFeaturedFirst) {
     const { error: resetErr } = await client
       .from('gallery_photos')
@@ -865,14 +865,14 @@ export async function sbUpsertGalleryPhoto(
 
 export async function sbDeleteGalleryPhoto(id: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('gallery_photos').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function sbSaveSocialChannels(channels: SocialChannel[]): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
   const { data: existing, error: fetchErr } = await client
     .from('social_channels')
@@ -910,7 +910,7 @@ export async function sbSaveSocialChannels(channels: SocialChannel[]): Promise<v
 
 export async function sbInsertSocialPost(post: SocialPost): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('social_posts').upsert(
     {
       id: post.id,
@@ -930,14 +930,14 @@ export async function sbInsertSocialPost(post: SocialPost): Promise<void> {
 
 export async function sbDeleteSocialPost(id: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('social_posts').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function sbDeleteShoutout(id: string): Promise<void> {
   const client = getBrowserSupabaseClient();
-  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
   const { error } = await client.from('fan_shoutouts').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
