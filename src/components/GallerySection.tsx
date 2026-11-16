@@ -126,125 +126,183 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
             Belum ada foto atau video pada kategori ini.
           </div>
         ) : (
-          <div className="space-y-4">
-            <div
-              ref={sliderRef}
-              onScroll={handleSliderScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {slides.map((slideItems, slideIdx) => (
-                <div
-                  key={`slide-${slideIdx}`}
-                  className="w-full shrink-0 snap-start grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 auto-rows-[220px] sm:auto-rows-[230px] lg:auto-rows-[240px]"
-                >
-                  {slideItems.map((photo, localIdx) => {
-                    const globalIndex = slideIdx * SLIDE_SIZE + localIdx;
-                    const isHeroTile = localIdx === 0 && slideItems.length >= 3;
-                    const isVideo = isVideoItem(photo);
-                    return (
-                      <button
-                        key={photo.id}
-                        type="button"
-                        onClick={() => setActiveIndex(globalIndex)}
-                        className={`group relative overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAB308] ${
-                          isHeroTile
-                            ? 'sm:col-span-2 sm:row-span-2'
-                            : 'col-span-1 row-span-1'
-                        }`}
-                      >
-                        {isVideo ? (
-                          <video
-                            src={resolveAssetUrl(photo.imageUrl)}
-                            muted
-                            playsInline
-                            loop
-                            autoPlay
-                            preload="metadata"
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                          />
-                        ) : (
-                          <ImageWithFallback
-                            src={photo.imageUrl}
-                            alt={`${photo.title} — ${photo.location}`}
-                            title={photo.title}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                          />
-                        )}
-                        {isVideo && (
-                          <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-md border border-[#2A3024] bg-[#0C0B09]/85 px-2.5 py-1 text-[11px] font-medium text-[#EAB308]">
-                            <Film className="w-3.5 h-3.5" aria-hidden="true" />
-                            Video
-                          </span>
-                        )}
-                        <div
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0B09]/90 via-[#0C0B09]/25 to-transparent"
-                        />
-                        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                          <p className="text-xs text-[#EAB308] font-medium">
-                            {photo.category} · {photo.dateLabel}
-                          </p>
-                          <h3 className="font-display text-base sm:text-lg font-bold text-[#F5F2EB] mt-0.5 line-clamp-1">
-                            {photo.title}
-                          </h3>
-                          <p className="text-xs text-[#A8A092] mt-0.5 truncate">
-                            {photo.location} · Oleh {photo.photographer}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+          <>
+            {/* Mobile & Tablet (< lg): Vertical Scroll Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 lg:hidden">
+              {filtered.map((photo, globalIndex) => {
+                const isVideo = isVideoItem(photo);
+                return (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    onClick={() => setActiveIndex(globalIndex)}
+                    className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAB308]"
+                  >
+                    {isVideo ? (
+                      <video
+                        src={resolveAssetUrl(photo.imageUrl)}
+                        muted
+                        playsInline
+                        loop
+                        autoPlay
+                        preload="metadata"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                    ) : (
+                      <ImageWithFallback
+                        src={photo.imageUrl}
+                        alt={`${photo.title} — ${photo.location}`}
+                        title={photo.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                    )}
+                    {isVideo && (
+                      <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-md border border-[#2A3024] bg-[#0C0B09]/85 px-2.5 py-1 text-[11px] font-medium text-[#EAB308]">
+                        <Film className="w-3.5 h-3.5" aria-hidden="true" />
+                        Video
+                      </span>
+                    )}
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0B09]/90 via-[#0C0B09]/25 to-transparent"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+                      <p className="text-xs text-[#EAB308] font-medium">
+                        {photo.category} · {photo.dateLabel}
+                      </p>
+                      <h3 className="font-display text-base sm:text-lg font-bold text-[#F5F2EB] mt-0.5 line-clamp-1">
+                        {photo.title}
+                      </h3>
+                      <p className="text-xs text-[#A8A092] mt-0.5 truncate">
+                        {photo.location} · Oleh {photo.photographer}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
-            {slides.length > 1 && (
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-                <p className="text-xs font-mono tabular-nums text-[#A8A092]">
-                  Slide {currentSlide + 1} / {slides.length} · Geser ke samping untuk lihat lainnya
-                </p>
-
-                <div className="flex items-center gap-3 ml-auto">
-                  <div className="flex items-center gap-1.5">
-                    {slides.map((_, dotIdx) => (
-                      <button
-                        key={`dot-${dotIdx}`}
-                        type="button"
-                        onClick={() => goToSlide(dotIdx)}
-                        aria-label={`Lihat slide galeri ${dotIdx + 1}`}
-                        className={`h-2 rounded-full transition-all cursor-pointer ${
-                          currentSlide === dotIdx
-                            ? 'w-6 bg-[#EAB308]'
-                            : 'w-2 bg-[#2A3024] hover:bg-[#575046]'
-                        }`}
-                      />
-                    ))}
+            {/* Desktop (lg+): Bento Slide Carousel */}
+            <div className="hidden lg:block space-y-4">
+              <div
+                ref={sliderRef}
+                onScroll={handleSliderScroll}
+                className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {slides.map((slideItems, slideIdx) => (
+                  <div
+                    key={`slide-${slideIdx}`}
+                    className="w-full shrink-0 snap-start grid grid-cols-4 gap-5 auto-rows-[240px]"
+                  >
+                    {slideItems.map((photo, localIdx) => {
+                      const globalIndex = slideIdx * SLIDE_SIZE + localIdx;
+                      const isHeroTile = localIdx === 0 && slideItems.length >= 3;
+                      const isVideo = isVideoItem(photo);
+                      return (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          onClick={() => setActiveIndex(globalIndex)}
+                          className={`group relative overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAB308] ${
+                            isHeroTile
+                              ? 'col-span-2 row-span-2'
+                              : 'col-span-1 row-span-1'
+                          }`}
+                        >
+                          {isVideo ? (
+                            <video
+                              src={resolveAssetUrl(photo.imageUrl)}
+                              muted
+                              playsInline
+                              loop
+                              autoPlay
+                              preload="metadata"
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                            />
+                          ) : (
+                            <ImageWithFallback
+                              src={photo.imageUrl}
+                              alt={`${photo.title} — ${photo.location}`}
+                              title={photo.title}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                            />
+                          )}
+                          {isVideo && (
+                            <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-md border border-[#2A3024] bg-[#0C0B09]/85 px-2.5 py-1 text-[11px] font-medium text-[#EAB308]">
+                              <Film className="w-3.5 h-3.5" aria-hidden="true" />
+                              Video
+                            </span>
+                          )}
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0B09]/90 via-[#0C0B09]/25 to-transparent"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 p-5">
+                            <p className="text-xs text-[#EAB308] font-medium">
+                              {photo.category} · {photo.dateLabel}
+                            </p>
+                            <h3 className="font-display text-lg font-bold text-[#F5F2EB] mt-0.5 line-clamp-1">
+                              {photo.title}
+                            </h3>
+                            <p className="text-xs text-[#A8A092] mt-0.5 truncate">
+                              {photo.location} · Oleh {photo.photographer}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
+                ))}
+              </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => goToSlide(currentSlide - 1)}
-                      disabled={currentSlide === 0}
-                      aria-label="Slide galeri sebelumnya"
-                      className="min-h-[38px] min-w-[38px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] bg-[#11150F] text-[#F5F2EB] hover:border-[#EAB308] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => goToSlide(currentSlide + 1)}
-                      disabled={currentSlide >= slides.length - 1}
-                      aria-label="Slide galeri berikutnya"
-                      className="min-h-[38px] min-w-[38px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] bg-[#11150F] text-[#F5F2EB] hover:border-[#EAB308] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+              {slides.length > 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                  <p className="text-xs font-mono tabular-nums text-[#A8A092]">
+                    Slide {currentSlide + 1} / {slides.length} · Geser ke samping untuk lihat lainnya
+                  </p>
+
+                  <div className="flex items-center gap-3 ml-auto">
+                    <div className="flex items-center gap-1.5">
+                      {slides.map((_, dotIdx) => (
+                        <button
+                          key={`dot-${dotIdx}`}
+                          type="button"
+                          onClick={() => goToSlide(dotIdx)}
+                          aria-label={`Lihat slide galeri ${dotIdx + 1}`}
+                          className={`h-2 rounded-full transition-all cursor-pointer ${
+                            currentSlide === dotIdx
+                              ? 'w-6 bg-[#EAB308]'
+                              : 'w-2 bg-[#2A3024] hover:bg-[#575046]'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => goToSlide(currentSlide - 1)}
+                        disabled={currentSlide === 0}
+                        aria-label="Slide galeri sebelumnya"
+                        className="min-h-[38px] min-w-[38px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] bg-[#11150F] text-[#F5F2EB] hover:border-[#EAB308] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => goToSlide(currentSlide + 1)}
+                        disabled={currentSlide >= slides.length - 1}
+                        aria-label="Slide galeri berikutnya"
+                        className="min-h-[38px] min-w-[38px] inline-flex items-center justify-center rounded-lg border border-[#2A3024] bg-[#11150F] text-[#F5F2EB] hover:border-[#EAB308] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
