@@ -29,6 +29,26 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import type { BackendMode } from '../hooks/useBandRealtime';
+import {
+  sbAdminLogin,
+  sbDeleteGalleryPhoto,
+  sbDeleteShoutout,
+  sbDeleteSiteSection,
+  sbDeleteSocialPost,
+  sbDeleteTour,
+  sbDeleteTrack,
+  sbInsertSocialPost,
+  sbReorderSiteSections,
+  sbSaveProfileAndMembers,
+  sbSaveSocialChannels,
+  sbUploadMedia,
+  sbUpsertGalleryPhoto,
+  sbUpsertSiteSection,
+  sbUpsertTour,
+  sbUpsertTrack,
+} from '../lib/supabaseBrowser';
+import { resolveAssetUrl } from '../shared/assetUrl';
 import type {
   BandMember,
   BandProfile,
@@ -38,6 +58,7 @@ import type {
   GalleryPhoto,
   SiteSection,
   SocialChannel,
+  SocialPost,
   SocialPlatform,
   TourDate,
   TourStatus,
@@ -46,6 +67,7 @@ import type {
 
 interface AdminDashboardProps {
   bandState: BandState;
+  backendMode: BackendMode;
   isAuthenticated: boolean;
   adminEmail: string | null;
   authToken: string | null;
@@ -80,6 +102,7 @@ const SECTION_LABELS: Record<AdminSection, string> = {
 
 export function AdminDashboard({
   bandState,
+  backendMode,
   isAuthenticated,
   adminEmail,
   authToken,
@@ -220,6 +243,14 @@ export function AdminDashboard({
     }
     setUploadingTarget(target);
     try {
+      if (backendMode === 'supabase') {
+        return await sbUploadMedia(file, folder);
+      }
+      if (backendMode === 'static') {
+        throw new Error(
+          'Upload file membutuhkan koneksi Supabase (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY).'
+        );
+      }
       const headers: Record<string, string> = {
         'Content-Type': file.type || 'application/octet-stream',
         'X-File-Name': encodeURIComponent(file.name),
@@ -266,6 +297,17 @@ export function AdminDashboard({
     setAuthError(null);
     setAuthBusy(true);
     try {
+      if (backendMode === 'supabase') {
+        const result = await sbAdminLogin(emailInput, passwordInput);
+        onLoginSuccess(result.email, result.token);
+        setPasswordInput('');
+        return;
+      }
+      if (backendMode === 'static') {
+        throw new Error(
+          'Mode GitHub Pages statis belum terhubung ke Supabase. Tambahkan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di GitHub Repository Variables/Secrets.'
+        );
+      }
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,13 +335,17 @@ export function AdminDashboard({
   async function saveProfilePayload(nextProfile: BandProfile, successMsg: string) {
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/profile', {
-        method: 'PUT',
-        headers: buildHeaders(),
-        body: JSON.stringify(nextProfile),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan profil.');
+      if (backendMode === 'supabase') {
+        await sbSaveProfileAndMembers(nextProfile);
+      } else {
+        const res = await fetch('/api/admin/profile', {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify(nextProfile),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyimpan profil.');
+      }
       await onRefreshState();
       showNotice(successMsg);
     } catch (err) {
@@ -465,17 +511,51 @@ export function AdminDashboard({
     }
     setSaving(true);
     try {
-      const url = editingSectionId
-        ? `/api/admin/sections/${editingSectionId}`
-        : '/api/admin/sections';
-      const method = editingSectionId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: buildHeaders(),
-        body: JSON.stringify(sectionForm),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan bagian halaman.');
+      if (backendMode === 'supabase') {
+        const existing = editingSectionId
+          ? (bandState.siteSections ?? []).find((s) => s.id === editingSectionId)
+          : undefined;
+        const rawSlug = (sectionForm.slug || sectionForm.navLabel)
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9-]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        const cleanSlug = rawSlug || `bagian-${Date.now().toString(36)}`;
+        const maxOrder = (bandState.siteSections ?? []).reduce(
+          (m, s) => Math.max(m, s.sortOrder),
+          -1
+        );
+        const secPayload: SiteSection = {
+          id: existing?.id ?? `sec-${Date.now().toString(36)}`,
+          slug: cleanSlug,
+          navLabel: sectionForm.navLabel.trim(),
+          kicker: sectionForm.kicker.trim(),
+          title: sectionForm.title.trim(),
+          subtitle: sectionForm.subtitle.trim() || undefined,
+          body: sectionForm.body.trim() || undefined,
+          imageUrl: sectionForm.imageUrl.trim() || undefined,
+          mediaType: sectionForm.imageUrl.trim() ? sectionForm.mediaType : undefined,
+          ctaLabel: sectionForm.ctaLabel.trim() || undefined,
+          ctaUrl: sectionForm.ctaUrl.trim() || undefined,
+          builtinKey: existing?.builtinKey,
+          visible: sectionForm.visible,
+          showInNav: sectionForm.showInNav,
+          sortOrder: existing ? existing.sortOrder : maxOrder + 1,
+        };
+        await sbUpsertSiteSection(secPayload);
+      } else {
+        const url = editingSectionId
+          ? `/api/admin/sections/${editingSectionId}`
+          : '/api/admin/sections';
+        const method = editingSectionId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: buildHeaders(),
+          body: JSON.stringify(sectionForm),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyimpan bagian halaman.');
+      }
       resetSectionForm();
       await onRefreshState();
       showNotice(
@@ -494,13 +574,17 @@ export function AdminDashboard({
 
   async function handleToggleSectionVisible(sec: SiteSection) {
     try {
-      const res = await fetch(`/api/admin/sections/${sec.id}`, {
-        method: 'PUT',
-        headers: buildHeaders(),
-        body: JSON.stringify({ visible: !sec.visible }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal mengubah visibilitas.');
+      if (backendMode === 'supabase') {
+        await sbUpsertSiteSection({ ...sec, visible: !sec.visible });
+      } else {
+        const res = await fetch(`/api/admin/sections/${sec.id}`, {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({ visible: !sec.visible }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal mengubah visibilitas.');
+      }
       await onRefreshState();
       showNotice(
         !sec.visible
@@ -521,13 +605,17 @@ export function AdminDashboard({
     const [moved] = ordered.splice(index, 1);
     ordered.splice(targetIdx, 0, moved);
     try {
-      const res = await fetch('/api/admin/sections/reorder', {
-        method: 'PUT',
-        headers: buildHeaders(),
-        body: JSON.stringify({ orderedIds: ordered.map((s) => s.id) }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal mengubah urutan halaman.');
+      if (backendMode === 'supabase') {
+        await sbReorderSiteSections(ordered);
+      } else {
+        const res = await fetch('/api/admin/sections/reorder', {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({ orderedIds: ordered.map((s) => s.id) }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal mengubah urutan halaman.');
+      }
       await onRefreshState();
       showNotice('Urutan bagian website diperbarui secara real-time.');
     } catch (err) {
@@ -537,12 +625,20 @@ export function AdminDashboard({
 
   async function handleDeleteSection(id: string) {
     try {
-      const res = await fetch(`/api/admin/sections/${id}`, {
-        method: 'DELETE',
-        headers: buildHeaders(),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menghapus bagian halaman.');
+      if (backendMode === 'supabase') {
+        const target = (bandState.siteSections ?? []).find((s) => s.id === id);
+        if (target?.builtinKey) {
+          throw new Error('Bagian bawaan tidak dapat dihapus permanen. Gunakan Sembunyikan.');
+        }
+        await sbDeleteSiteSection(id);
+      } else {
+        const res = await fetch(`/api/admin/sections/${id}`, {
+          method: 'DELETE',
+          headers: buildHeaders(),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menghapus bagian halaman.');
+      }
       if (editingSectionId === id) resetSectionForm();
       setConfirmDeleteSectionId(null);
       await onRefreshState();
@@ -588,22 +684,45 @@ export function AdminDashboard({
     if (!trackForm.title.trim()) return;
     setSaving(true);
     try {
-      const url = editingTrackId
-        ? `/api/admin/tracks/${editingTrackId}`
-        : '/api/admin/tracks';
-      const method = editingTrackId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: buildHeaders(),
-        body: JSON.stringify({
-          ...trackForm,
-          bpm: Number(trackForm.bpm),
+      if (backendMode === 'supabase') {
+        const existing = editingTrackId
+          ? bandState.tracks.find((t) => t.id === editingTrackId)
+          : undefined;
+        await sbUpsertTrack({
+          id: existing?.id ?? `trk-${Date.now().toString(36)}`,
+          title: trackForm.title.trim(),
+          album: trackForm.album.trim() || 'Single Terbaru',
+          year: trackForm.year.trim() || '2026',
+          durationSec: existing?.durationSec ?? 26,
+          bpm: Number(trackForm.bpm) || 76,
+          musicalKey: trackForm.musicalKey.trim() || 'Am',
+          synthSeed: existing?.synthSeed ?? bandState.tracks.length + 1,
+          coverUrl:
+            trackForm.coverUrl.trim() ||
+            '/src/assets/images/album_cover_senja_1794832345337.jpg',
           audioUrl: trackForm.audioUrl.trim() || undefined,
-          durationSec: 26,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan lagu.');
+          plays: existing?.plays ?? 0,
+          credits: trackForm.credits.trim() || 'Rasmalas Collective',
+          lyrics: trackForm.lyrics.trim(),
+        });
+      } else {
+        const url = editingTrackId
+          ? `/api/admin/tracks/${editingTrackId}`
+          : '/api/admin/tracks';
+        const method = editingTrackId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: buildHeaders(),
+          body: JSON.stringify({
+            ...trackForm,
+            bpm: Number(trackForm.bpm),
+            audioUrl: trackForm.audioUrl.trim() || undefined,
+            durationSec: 26,
+          }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyimpan lagu.');
+      }
       resetTrackForm();
       await onRefreshState();
       showNotice(
@@ -621,11 +740,15 @@ export function AdminDashboard({
   async function handleDeleteTrack(id: string) {
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/tracks/${id}`, {
-        method: 'DELETE',
-        headers: buildHeaders(),
-      });
-      if (!res.ok) throw new Error('Gagal menghapus lagu.');
+      if (backendMode === 'supabase') {
+        await sbDeleteTrack(id);
+      } else {
+        const res = await fetch(`/api/admin/tracks/${id}`, {
+          method: 'DELETE',
+          headers: buildHeaders(),
+        });
+        if (!res.ok) throw new Error('Gagal menghapus lagu.');
+      }
       if (editingTrackId === id) resetTrackForm();
       await onRefreshState();
       showNotice('Lagu dihapus dari katalog.');
@@ -672,17 +795,36 @@ export function AdminDashboard({
     if (!tourForm.city.trim() || !tourForm.venue.trim()) return;
     setSaving(true);
     try {
-      const url = editingTourId
-        ? `/api/admin/tours/${editingTourId}`
-        : '/api/admin/tours';
-      const method = editingTourId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: buildHeaders(),
-        body: JSON.stringify(tourForm),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan jadwal.');
+      if (backendMode === 'supabase') {
+        const existing = editingTourId
+          ? bandState.tours.find((t) => t.id === editingTourId)
+          : undefined;
+        await sbUpsertTour({
+          id: existing?.id ?? `tour-${Date.now().toString(36)}`,
+          date: tourForm.date.trim(),
+          city: tourForm.city.trim(),
+          country: tourForm.country.trim() || 'Indonesia',
+          venue: tourForm.venue.trim(),
+          stageTime: tourForm.stageTime.trim() || '20:00 WIB',
+          priceLabel: tourForm.priceLabel.trim() || 'Rp 150.000',
+          status: tourForm.status,
+          ticketUrl: tourForm.ticketUrl.trim() || '#jadwal',
+          rsvpCount: existing?.rsvpCount ?? 0,
+          notes: tourForm.notes.trim() || undefined,
+        });
+      } else {
+        const url = editingTourId
+          ? `/api/admin/tours/${editingTourId}`
+          : '/api/admin/tours';
+        const method = editingTourId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: buildHeaders(),
+          body: JSON.stringify(tourForm),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyimpan jadwal.');
+      }
       resetTourForm();
       await onRefreshState();
       showNotice(
@@ -697,12 +839,18 @@ export function AdminDashboard({
 
   async function handleQuickTourStatus(id: string, status: TourStatus) {
     try {
-      const res = await fetch(`/api/admin/tours/${id}`, {
-        method: 'PUT',
-        headers: buildHeaders(),
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error('Gagal mengubah status jadwal.');
+      if (backendMode === 'supabase') {
+        const existing = bandState.tours.find((t) => t.id === id);
+        if (!existing) throw new Error('Jadwal tidak ditemukan.');
+        await sbUpsertTour({ ...existing, status });
+      } else {
+        const res = await fetch(`/api/admin/tours/${id}`, {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error('Gagal mengubah status jadwal.');
+      }
       await onRefreshState();
       showNotice('Status tiket diperbarui real-time.');
     } catch (err) {
@@ -712,11 +860,15 @@ export function AdminDashboard({
 
   async function handleDeleteTour(id: string) {
     try {
-      const res = await fetch(`/api/admin/tours/${id}`, {
-        method: 'DELETE',
-        headers: buildHeaders(),
-      });
-      if (!res.ok) throw new Error('Gagal menghapus jadwal.');
+      if (backendMode === 'supabase') {
+        await sbDeleteTour(id);
+      } else {
+        const res = await fetch(`/api/admin/tours/${id}`, {
+          method: 'DELETE',
+          headers: buildHeaders(),
+        });
+        if (!res.ok) throw new Error('Gagal menghapus jadwal.');
+      }
       if (editingTourId === id) resetTourForm();
       await onRefreshState();
       showNotice('Jadwal dihapus.');
@@ -817,17 +969,32 @@ export function AdminDashboard({
     }
     setSaving(true);
     try {
-      const url = editingPhotoId
-        ? `/api/admin/gallery/${editingPhotoId}`
-        : '/api/admin/gallery';
-      const method = editingPhotoId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: buildHeaders(),
-        body: JSON.stringify(photoForm),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan media galeri.');
+      if (backendMode === 'supabase') {
+        const photo: GalleryPhoto = {
+          id: editingPhotoId ?? `gal-${Date.now().toString(36)}`,
+          title: photoForm.title.trim(),
+          category: photoForm.category,
+          imageUrl: photoForm.imageUrl.trim(),
+          mediaType: photoForm.mediaType,
+          location: photoForm.location.trim() || 'Indonesia',
+          dateLabel: photoForm.dateLabel.trim() || '2026',
+          photographer: photoForm.photographer.trim() || 'Tim Rasmalas',
+          featured: Boolean(photoForm.featured),
+        };
+        await sbUpsertGalleryPhoto(photo, Boolean(photoForm.featured));
+      } else {
+        const url = editingPhotoId
+          ? `/api/admin/gallery/${editingPhotoId}`
+          : '/api/admin/gallery';
+        const method = editingPhotoId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: buildHeaders(),
+          body: JSON.stringify(photoForm),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyimpan media galeri.');
+      }
       resetPhotoForm();
       await onRefreshState();
       showNotice(
@@ -844,11 +1011,15 @@ export function AdminDashboard({
 
   async function handleDeletePhoto(id: string) {
     try {
-      const res = await fetch(`/api/admin/gallery/${id}`, {
-        method: 'DELETE',
-        headers: buildHeaders(),
-      });
-      if (!res.ok) throw new Error('Gagal menghapus media.');
+      if (backendMode === 'supabase') {
+        await sbDeleteGalleryPhoto(id);
+      } else {
+        const res = await fetch(`/api/admin/gallery/${id}`, {
+          method: 'DELETE',
+          headers: buildHeaders(),
+        });
+        if (!res.ok) throw new Error('Gagal menghapus media.');
+      }
       if (editingPhotoId === id) resetPhotoForm();
       await onRefreshState();
       showNotice('Media dihapus dari galeri.');
@@ -877,12 +1048,16 @@ export function AdminDashboard({
   async function handleSaveChannels() {
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/social/channels', {
-        method: 'PUT',
-        headers: buildHeaders(),
-        body: JSON.stringify({ channels: channelsForm }),
-      });
-      if (!res.ok) throw new Error('Gagal menyimpan kanal sosial.');
+      if (backendMode === 'supabase') {
+        await sbSaveSocialChannels(channelsForm);
+      } else {
+        const res = await fetch('/api/admin/social/channels', {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({ channels: channelsForm }),
+        });
+        if (!res.ok) throw new Error('Gagal menyimpan kanal sosial.');
+      }
       await onRefreshState();
       showNotice('Kanal media sosial diperbarui secara real-time.');
     } catch (err) {
@@ -897,19 +1072,35 @@ export function AdminDashboard({
     if (!postContent.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/social/posts', {
-        method: 'POST',
-        headers: buildHeaders(),
-        body: JSON.stringify({
+      if (backendMode === 'supabase') {
+        const channel = bandState.socialChannels.find((c) => c.platform === postPlatform);
+        const post: SocialPost = {
+          id: `soc-${Date.now().toString(36)}`,
           platform: postPlatform,
-          content: postContent,
+          authorHandle: channel?.handle ?? '@rasmalas.official',
+          content: postContent.trim(),
           mediaUrl: postMediaUrl.trim() || undefined,
           mediaType: postMediaUrl.trim() ? postMediaType : undefined,
-          externalUrl: postExternalUrl.trim() || undefined,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Gagal menyiarkan pembaruan.');
+          externalUrl: postExternalUrl.trim() || channel?.url,
+          likes: 0,
+          createdAt: new Date().toISOString(),
+        };
+        await sbInsertSocialPost(post);
+      } else {
+        const res = await fetch('/api/admin/social/posts', {
+          method: 'POST',
+          headers: buildHeaders(),
+          body: JSON.stringify({
+            platform: postPlatform,
+            content: postContent,
+            mediaUrl: postMediaUrl.trim() || undefined,
+            mediaType: postMediaUrl.trim() ? postMediaType : undefined,
+            externalUrl: postExternalUrl.trim() || undefined,
+          }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal menyiarkan pembaruan.');
+      }
       setPostContent('');
       setPostMediaUrl('');
       setPostMediaType('image');
@@ -925,11 +1116,15 @@ export function AdminDashboard({
 
   async function handleDeleteSocialPost(id: string) {
     try {
-      const res = await fetch(`/api/admin/social/posts/${id}`, {
-        method: 'DELETE',
-        headers: buildHeaders(),
-      });
-      if (!res.ok) throw new Error('Gagal menghapus postingan.');
+      if (backendMode === 'supabase') {
+        await sbDeleteSocialPost(id);
+      } else {
+        const res = await fetch(`/api/admin/social/posts/${id}`, {
+          method: 'DELETE',
+          headers: buildHeaders(),
+        });
+        if (!res.ok) throw new Error('Gagal menghapus postingan.');
+      }
       await onRefreshState();
       showNotice('Postingan media sosial dihapus.');
     } catch (err) {
@@ -939,11 +1134,15 @@ export function AdminDashboard({
 
   async function handleDeleteShoutout(id: string) {
     try {
-      const res = await fetch(`/api/admin/social/shoutouts/${id}`, {
-        method: 'DELETE',
-        headers: buildHeaders(),
-      });
-      if (!res.ok) throw new Error('Gagal menghapus sapaan.');
+      if (backendMode === 'supabase') {
+        await sbDeleteShoutout(id);
+      } else {
+        const res = await fetch(`/api/admin/social/shoutouts/${id}`, {
+          method: 'DELETE',
+          headers: buildHeaders(),
+        });
+        if (!res.ok) throw new Error('Gagal menghapus sapaan.');
+      }
       await onRefreshState();
       showNotice('Sapaan pendengar dihapus.');
     } catch (err) {
@@ -953,11 +1152,18 @@ export function AdminDashboard({
 
   async function handleDownloadBackup() {
     try {
-      const headers: Record<string, string> = {};
-      if (authToken) headers.Authorization = `Bearer ${authToken}`;
-      const res = await fetch('/api/admin/export', { headers });
-      if (!res.ok) throw new Error('Gagal mengunduh cadangan.');
-      const blob = await res.blob();
+      let blob: Blob;
+      if (backendMode === 'express') {
+        const headers: Record<string, string> = {};
+        if (authToken) headers.Authorization = `Bearer ${authToken}`;
+        const res = await fetch('/api/admin/export', { headers });
+        if (!res.ok) throw new Error('Gagal mengunduh cadangan.');
+        blob = await res.blob();
+      } else {
+        blob = new Blob([JSON.stringify(bandState, null, 2)], {
+          type: 'application/json',
+        });
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1005,7 +1211,7 @@ export function AdminDashboard({
             {bandState.profile.logoUrl ? (
               <span className="inline-block h-9 w-32 overflow-hidden">
                 <img
-                  src={bandState.profile.logoUrl}
+                  src={resolveAssetUrl(bandState.profile.logoUrl)}
                   alt={bandState.profile.name}
                   className="h-full w-full object-cover object-center scale-[1.15]"
                 />
@@ -1107,10 +1313,31 @@ export function AdminDashboard({
               </form>
 
               <div className="border-t border-[#2A3024] pt-4 text-xs text-[#A8A092] space-y-1">
-                <p>Kredensial Demo:</p>
-                <p className="font-mono text-[#D6CFC2]">
-                  admin@rasmalas.id · sandi: reggae2026
-                </p>
+                {backendMode === 'supabase' ? (
+                  <>
+                    <p>Mode GitHub Pages + Supabase Aktif:</p>
+                    <p className="text-[#D6CFC2]">
+                      Masuk dengan akun email &amp; kata sandi yang terdaftar di Supabase
+                      Authentication &amp; tabel <span className="font-mono">admin_users</span>.
+                    </p>
+                  </>
+                ) : backendMode === 'static' ? (
+                  <>
+                    <p>Mode Hosting Statis (GitHub Pages):</p>
+                    <p className="text-[#D6CFC2]">
+                      Tambahkan Variables <span className="font-mono">VITE_SUPABASE_URL</span> &amp;{' '}
+                      <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di GitHub Actions
+                      untuk mengaktifkan login &amp; edit admin.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>Kredensial Demo:</p>
+                    <p className="font-mono text-[#D6CFC2]">
+                      admin@rasmalas.id · sandi: reggae2026
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1154,7 +1381,7 @@ export function AdminDashboard({
             {bandState.profile.logoUrl ? (
               <span className="inline-block h-8 w-28 overflow-hidden">
                 <img
-                  src={bandState.profile.logoUrl}
+                  src={resolveAssetUrl(bandState.profile.logoUrl)}
                   alt={bandState.profile.name}
                   className="h-full w-full object-cover object-center scale-[1.15]"
                 />
@@ -1441,7 +1668,7 @@ export function AdminDashboard({
                     <div className="flex items-center gap-4">
                       {profileForm.heroImage && (
                         <img
-                          src={profileForm.heroImage}
+                          src={resolveAssetUrl(profileForm.heroImage)}
                           alt="Foto Hero"
                           className="h-16 w-24 rounded-lg object-cover border border-[#2A3024] shrink-0"
                         />
@@ -1467,7 +1694,7 @@ export function AdminDashboard({
                     <div className="flex items-center gap-4">
                       {profileForm.studioImage && (
                         <img
-                          src={profileForm.studioImage}
+                          src={resolveAssetUrl(profileForm.studioImage)}
                           alt="Foto Studio"
                           className="h-16 w-24 rounded-lg object-cover border border-[#2A3024] shrink-0"
                         />
@@ -1722,14 +1949,14 @@ export function AdminDashboard({
                         <div className="pt-2 border-t border-[#2A3024] flex items-center gap-3">
                           {sectionForm.mediaType === 'video' ? (
                             <video
-                              src={sectionForm.imageUrl}
+                              src={resolveAssetUrl(sectionForm.imageUrl)}
                               controls
                               playsInline
                               className="h-24 w-40 rounded-lg object-cover border border-[#2A3024] bg-black"
                             />
                           ) : (
                             <img
-                              src={sectionForm.imageUrl}
+                              src={resolveAssetUrl(sectionForm.imageUrl)}
                               alt="Pratinjau media halaman"
                               className="h-20 w-32 rounded-lg object-cover border border-[#2A3024]"
                             />
@@ -1986,7 +2213,7 @@ export function AdminDashboard({
                     {profileForm.logoUrl && (
                       <div className="h-12 px-3 rounded-lg border border-[#2A3024] bg-[#090B08] flex items-center justify-center">
                         <img
-                          src={profileForm.logoUrl}
+                          src={resolveAssetUrl(profileForm.logoUrl)}
                           alt="Logo Band"
                           className="h-8 w-auto object-contain"
                         />
@@ -2332,7 +2559,7 @@ export function AdminDashboard({
                   <div className="flex items-center gap-3 min-h-[44px] px-3 py-1.5 bg-[#090B08] border border-[#2A3024] rounded-lg">
                     {trackForm.coverUrl && (
                       <img
-                        src={trackForm.coverUrl}
+                        src={resolveAssetUrl(trackForm.coverUrl)}
                         alt="Pratinjau sampul"
                         className="w-9 h-9 rounded object-cover border border-[#2A3024] shrink-0"
                       />
@@ -2725,14 +2952,14 @@ export function AdminDashboard({
                     <div className="flex items-center gap-4 pt-2 border-t border-[#2A3024]">
                       {photoForm.mediaType === 'video' ? (
                         <video
-                          src={photoForm.imageUrl}
+                          src={resolveAssetUrl(photoForm.imageUrl)}
                           controls
                           playsInline
                           className="h-28 w-44 rounded-lg object-cover border border-[#2A3024] bg-black"
                         />
                       ) : (
                         <img
-                          src={photoForm.imageUrl}
+                          src={resolveAssetUrl(photoForm.imageUrl)}
                           alt="Pratinjau galeri"
                           className="h-24 w-36 rounded-lg object-cover border border-[#2A3024]"
                         />
@@ -2857,7 +3084,7 @@ export function AdminDashboard({
                             {isVideo ? (
                               <>
                                 <video
-                                  src={p.imageUrl}
+                                  src={resolveAssetUrl(p.imageUrl)}
                                   muted
                                   playsInline
                                   preload="metadata"
@@ -2869,7 +3096,7 @@ export function AdminDashboard({
                               </>
                             ) : (
                               <img
-                                src={p.imageUrl}
+                                src={resolveAssetUrl(p.imageUrl)}
                                 alt={p.title}
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover"
@@ -2982,14 +3209,14 @@ export function AdminDashboard({
                   <div className="flex items-center gap-3 p-2.5 rounded-lg border border-[#2A3024] bg-[#090B08]">
                     {postMediaType === 'video' ? (
                       <video
-                        src={postMediaUrl}
+                        src={resolveAssetUrl(postMediaUrl)}
                         controls
                         playsInline
                         className="h-20 w-36 rounded object-cover bg-black"
                       />
                     ) : (
                       <img
-                        src={postMediaUrl}
+                        src={resolveAssetUrl(postMediaUrl)}
                         alt="Pratinjau lampiran"
                         className="h-20 w-32 rounded object-cover"
                       />
