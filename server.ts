@@ -1380,6 +1380,76 @@ async function startServer(): Promise<void> {
     res.status(201).json({ socialPosts: next.socialPosts, post: newPost });
   });
 
+  app.put('/api/admin/social/posts/:id', requireAdmin, async (req, res) => {
+    const adminReq = req as AdminRequest;
+    const { id } = req.params;
+    const body = req.body as Partial<SocialPost>;
+    const existing = getState().socialPosts.find((p) => p.id === id);
+
+    const content = String(body.content ?? existing?.content ?? '')
+      .trim()
+      .slice(0, 500);
+    if (!content) {
+      res.status(400).json({ error: 'Konten postingan sosial wajib diisi.' });
+      return;
+    }
+
+    const platform: SocialPlatform =
+      String(body.platform ?? existing?.platform ?? '').trim().slice(0, 40) ||
+      'Instagram';
+    const channel = getState().socialChannels.find((c) => c.platform === platform);
+
+    const updatedPost: SocialPost = {
+      id,
+      platform,
+      authorHandle: String(
+        body.authorHandle ?? existing?.authorHandle ?? channel?.handle ?? '@rasmalas.official'
+      )
+        .trim()
+        .slice(0, 60),
+      content,
+      mediaUrl: body.mediaUrl ? String(body.mediaUrl).trim() : undefined,
+      mediaType: body.mediaUrl
+        ? body.mediaType === 'video'
+          ? 'video'
+          : 'image'
+        : undefined,
+      externalUrl: body.externalUrl ? String(body.externalUrl).trim() : undefined,
+      likes: existing?.likes ?? 0,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+
+    try {
+      await dbInsertSocialPost(updatedPost, adminReq.sbToken);
+    } catch (err) {
+      res.status(403).json({
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Gagal memperbarui postingan di Supabase.',
+      });
+      return;
+    }
+
+    const next = updateState((draft) => {
+      const idx = draft.socialPosts.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        draft.socialPosts[idx] = updatedPost;
+      } else {
+        draft.socialPosts.unshift(updatedPost);
+      }
+    });
+    broadcast({
+      type: 'social:updated',
+      payload: {
+        socialChannels: next.socialChannels,
+        socialPosts: next.socialPosts,
+        shoutouts: next.shoutouts,
+      },
+    });
+    res.json({ socialPosts: next.socialPosts, post: updatedPost });
+  });
+
   app.delete('/api/admin/social/posts/:id', requireAdmin, async (req, res) => {
     const adminReq = req as AdminRequest;
     const { id } = req.params;

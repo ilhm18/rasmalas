@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   ArrowDown,
   ArrowLeft,
@@ -264,10 +264,15 @@ export function AdminDashboard({
   });
 
   // Social state
+  const socialPostFormRef = useRef<HTMLFormElement | null>(null);
   const [channelsForm, setChannelsForm] = useState<SocialChannel[]>(
     bandState.socialChannels
   );
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editingPostLikes, setEditingPostLikes] = useState(0);
+  const [editingPostCreatedAt, setEditingPostCreatedAt] = useState<string | null>(null);
   const [postPlatform, setPostPlatform] = useState<SocialPlatform>('Instagram');
+  const [postAuthorHandle, setPostAuthorHandle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postMediaUrl, setPostMediaUrl] = useState('');
   const [postMediaType, setPostMediaType] = useState<'image' | 'video'>('image');
@@ -1354,48 +1359,102 @@ export function AdminDashboard({
     void saveProfilePayload(updatedProfile, 'Tautan footer dihapus.');
   }
 
+  function resetSocialPostForm() {
+    setEditingPostId(null);
+    setEditingPostLikes(0);
+    setEditingPostCreatedAt(null);
+    setPostAuthorHandle('');
+    setPostContent('');
+    setPostMediaUrl('');
+    setPostMediaType('image');
+    setPostExternalUrl('');
+  }
+
+  function startEditSocialPost(post: SocialPost) {
+    setEditingPostId(post.id);
+    setEditingPostLikes(post.likes ?? 0);
+    setEditingPostCreatedAt(post.createdAt || null);
+    setPostPlatform(post.platform);
+    setPostAuthorHandle(post.authorHandle || '');
+    setPostContent(post.content);
+    setPostMediaUrl(post.mediaUrl ?? '');
+    setPostMediaType(post.mediaType === 'video' ? 'video' : 'image');
+    setPostExternalUrl(post.externalUrl ?? '');
+    socialPostFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   async function handlePublishSocialPost(e: FormEvent) {
     e.preventDefault();
     if (!postContent.trim()) return;
     setSaving(true);
+    const isEditing = Boolean(editingPostId);
+    const channel = bandState.socialChannels.find((c) => c.platform === postPlatform);
+    const resolvedHandle =
+      postAuthorHandle.trim() || channel?.handle || '@rasmalas.official';
+    const resolvedExternalUrl = postExternalUrl.trim() || (isEditing ? undefined : channel?.url);
+
     try {
       if (backendMode === 'supabase') {
-        const channel = bandState.socialChannels.find((c) => c.platform === postPlatform);
         const post: SocialPost = {
-          id: `soc-${Date.now().toString(36)}`,
+          id: editingPostId ?? `soc-${Date.now().toString(36)}`,
           platform: postPlatform,
-          authorHandle: channel?.handle ?? '@rasmalas.official',
+          authorHandle: resolvedHandle,
           content: postContent.trim(),
           mediaUrl: postMediaUrl.trim() || undefined,
           mediaType: postMediaUrl.trim() ? postMediaType : undefined,
-          externalUrl: postExternalUrl.trim() || channel?.url,
-          likes: 0,
-          createdAt: new Date().toISOString(),
+          externalUrl: resolvedExternalUrl,
+          likes: isEditing ? editingPostLikes : 0,
+          createdAt: isEditing
+            ? editingPostCreatedAt || new Date().toISOString()
+            : new Date().toISOString(),
         };
         await sbInsertSocialPost(post);
+      } else if (editingPostId) {
+        const res = await fetch(`/api/admin/social/posts/${editingPostId}`, {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({
+            platform: postPlatform,
+            authorHandle: resolvedHandle,
+            content: postContent.trim(),
+            mediaUrl: postMediaUrl.trim() || undefined,
+            mediaType: postMediaUrl.trim() ? postMediaType : undefined,
+            externalUrl: resolvedExternalUrl,
+          }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || 'Gagal memperbarui postingan.');
       } else {
         const res = await fetch('/api/admin/social/posts', {
           method: 'POST',
           headers: buildHeaders(),
           body: JSON.stringify({
             platform: postPlatform,
-            content: postContent,
+            authorHandle: resolvedHandle,
+            content: postContent.trim(),
             mediaUrl: postMediaUrl.trim() || undefined,
             mediaType: postMediaUrl.trim() ? postMediaType : undefined,
-            externalUrl: postExternalUrl.trim() || undefined,
+            externalUrl: resolvedExternalUrl,
           }),
         });
         const data = (await res.json()) as { error?: string };
         if (!res.ok) throw new Error(data.error || 'Gagal menyiarkan pembaruan.');
       }
-      setPostContent('');
-      setPostMediaUrl('');
-      setPostMediaType('image');
-      setPostExternalUrl('');
+      resetSocialPostForm();
       await onRefreshState();
-      showNotice('Siaran media sosial langsung tampil di halaman publik.');
+      showNotice(
+        isEditing
+          ? 'Postingan media sosial berhasil diperbarui.'
+          : 'Postingan media sosial baru langsung tampil di halaman publik.'
+      );
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Gagal menyiarkan pembaruan.');
+      showError(
+        err instanceof Error
+          ? err.message
+          : isEditing
+            ? 'Gagal memperbarui postingan.'
+            : 'Gagal menyiarkan pembaruan.'
+      );
     } finally {
       setSaving(false);
     }
@@ -1412,6 +1471,7 @@ export function AdminDashboard({
         });
         if (!res.ok) throw new Error('Gagal menghapus postingan.');
       }
+      if (editingPostId === id) resetSocialPostForm();
       await onRefreshState();
       showNotice('Postingan media sosial dihapus.');
     } catch (err) {
@@ -3985,32 +4045,61 @@ export function AdminDashboard({
           {section === 'social' && (
             <div className="space-y-6">
               <form
+                ref={socialPostFormRef}
                 onSubmit={handlePublishSocialPost}
                 className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4"
               >
-                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                  Siarkan Pembaruan Media Sosial (Real-Time)
-                </h1>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                    {editingPostId
+                      ? 'Edit Postingan Media Sosial'
+                      : 'Tambah & Siarkan Postingan Media Sosial'}
+                  </h1>
+                  {editingPostId && (
+                    <button
+                      type="button"
+                      onClick={resetSocialPostForm}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Batal Edit
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <select
                     value={postPlatform}
                     onChange={(e) => setPostPlatform(e.target.value as SocialPlatform)}
                     className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   >
-                    {(channelsForm.length > 0
-                      ? channelsForm.map((c) => c.platform)
-                      : ['Instagram', 'YouTube', 'Spotify', 'TikTok']
+                    {Array.from(
+                      new Set([
+                        ...(channelsForm.length > 0
+                          ? channelsForm.map((c) => c.platform)
+                          : ['Instagram', 'YouTube', 'Spotify', 'TikTok']),
+                        postPlatform,
+                      ])
                     ).map((plat) => (
                       <option key={plat} value={plat}>
                         {plat}
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="text"
+                    value={postAuthorHandle}
+                    onChange={(e) => setPostAuthorHandle(e.target.value)}
+                    placeholder={`Akun / Handle (mis. ${
+                      channelsForm.find((c) => c.platform === postPlatform)?.handle ||
+                      '@rasmalas.official'
+                    })`}
+                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
                   <div className="flex items-center gap-2 min-h-[40px] px-3 bg-[#090B08] border border-[#2A3024] rounded-lg">
                     <label className="inline-flex items-center gap-2 text-xs font-medium text-[#EAB308] cursor-pointer">
                       <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                       {uploadingTarget === 'social'
-                        ? 'Mengunggah...'
+                        ? `Mengunggah${uploadProgress !== null ? ` (${uploadProgress}%)` : '...'}`
                         : postMediaUrl
                           ? 'Ganti Foto / Video'
                           : 'Unggah Foto / Video (opsional)'}
@@ -4061,27 +4150,47 @@ export function AdminDashboard({
                     )}
                     <span className="text-xs text-[#4ADE80]">
                       {postMediaType === 'video'
-                        ? 'Lampiran video siap disiarkan.'
-                        : 'Lampiran foto siap disiarkan.'}
+                        ? 'Lampiran video siap disimpan.'
+                        : 'Lampiran foto siap disimpan.'}
                     </span>
                   </div>
                 )}
                 <textarea
                   required
-                  rows={2}
+                  rows={3}
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
                   placeholder="Tulis pengumuman rilis, jadwal soundcheck, atau kabar studio..."
                   className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                 />
-                <button
-                  type="submit"
-                  disabled={saving || uploadingTarget === 'social'}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" aria-hidden="true" />
-                  Siarkan Sekarang ke Semua Pengunjung
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={saving || uploadingTarget === 'social'}
+                    className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                  >
+                    {editingPostId ? (
+                      <>
+                        <Check className="w-4 h-4" aria-hidden="true" />
+                        Simpan Perubahan Postingan
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" aria-hidden="true" />
+                        Tambah & Siarkan Postingan
+                      </>
+                    )}
+                  </button>
+                  {editingPostId && (
+                    <button
+                      type="button"
+                      onClick={resetSocialPostForm}
+                      className="min-h-[42px] px-4 py-2 text-xs font-medium text-[#A8A092] border border-[#2A3024] rounded-lg hover:text-[#F5F2EB] cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  )}
+                </div>
               </form>
 
               <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4">
@@ -4168,33 +4277,76 @@ export function AdminDashboard({
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 space-y-3">
-                  <h3 className="text-sm font-semibold text-[#F5F2EB]">
-                    Arsip Postingan ({bandState.socialPosts.length})
-                  </h3>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-[#F5F2EB]">
+                      Arsip Postingan ({bandState.socialPosts.length})
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetSocialPostForm();
+                        socialPostFormRef.current?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'start',
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 min-h-[32px] px-3 py-1 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                      Tambah
+                    </button>
+                  </div>
                   <div className="space-y-2.5">
-                    {bandState.socialPosts.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-start justify-between gap-3 rounded-lg border border-[#2A3024] bg-[#090B08] p-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-[#EAB308]">
-                            {p.platform} · {p.authorHandle} · {p.likes} suka
-                          </p>
-                          <p className="text-xs text-[#D6CFC2] mt-1 line-clamp-2">
-                            {p.content}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSocialPost(p.id)}
-                          aria-label="Hapus postingan"
-                          className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer shrink-0"
+                    {bandState.socialPosts.length === 0 ? (
+                      <p className="text-xs text-[#A8A092] py-4 text-center border border-dashed border-[#2A3024] rounded-lg">
+                        Belum ada postingan media sosial.
+                      </p>
+                    ) : (
+                      bandState.socialPosts.map((p) => (
+                        <div
+                          key={p.id}
+                          className={`flex items-start justify-between gap-3 rounded-lg border bg-[#090B08] p-3 ${
+                            editingPostId === p.id
+                              ? 'border-[#EAB308]'
+                              : 'border-[#2A3024]'
+                          }`}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-[#EAB308]">
+                              {p.platform} · {p.authorHandle} · {p.likes} suka
+                            </p>
+                            <p className="text-xs text-[#D6CFC2] mt-1 line-clamp-2">
+                              {p.content}
+                            </p>
+                            {p.mediaUrl && (
+                              <p className="text-[11px] text-[#A8A092] mt-1">
+                                Lampiran: {p.mediaType === 'video' ? 'Video' : 'Foto'}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => startEditSocialPost(p)}
+                              aria-label="Edit postingan"
+                              title="Edit postingan"
+                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#EAB308] cursor-pointer"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSocialPost(p.id)}
+                              aria-label="Hapus postingan"
+                              title="Hapus postingan"
+                              className="min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F87171] cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
