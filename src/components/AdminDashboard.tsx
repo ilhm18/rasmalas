@@ -305,7 +305,7 @@ export function AdminDashboard({
       }
       if (backendMode === 'static') {
         throw new Error(
-          'Mode GitHub Pages statis belum terhubung ke Supabase. Tambahkan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di GitHub Repository Variables/Secrets.'
+          'Hosting statis (Vercel / GitHub Pages) belum terhubung ke Supabase. Tambahkan VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY di Environment Variables, lalu lakukan Redeploy.'
         );
       }
       const res = await fetch('/api/auth/login', {
@@ -1299,23 +1299,25 @@ export function AdminDashboard({
                     {authBusy ? 'Memverifikasi...' : 'Buka Dashboard'}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmailInput('admin@rasmalas.id');
-                      setPasswordInput('reggae2026');
-                    }}
-                    className="text-xs text-[#D6CFC2] hover:text-[#EAB308] underline underline-offset-4 cursor-pointer"
-                  >
-                    Isi Kredensial Demo
-                  </button>
+                  {backendMode === 'express' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmailInput('admin@rasmalas.id');
+                        setPasswordInput('reggae2026');
+                      }}
+                      className="text-xs text-[#D6CFC2] hover:text-[#EAB308] underline underline-offset-4 cursor-pointer"
+                    >
+                      Isi Kredensial Demo
+                    </button>
+                  )}
                 </div>
               </form>
 
               <div className="border-t border-[#2A3024] pt-4 text-xs text-[#A8A092] space-y-1">
                 {backendMode === 'supabase' ? (
                   <>
-                    <p>Mode GitHub Pages + Supabase Aktif:</p>
+                    <p>Mode Supabase Direct Aktif:</p>
                     <p className="text-[#D6CFC2]">
                       Masuk dengan akun email &amp; kata sandi yang terdaftar di Supabase
                       Authentication &amp; tabel <span className="font-mono">admin_users</span>.
@@ -1323,11 +1325,13 @@ export function AdminDashboard({
                   </>
                 ) : backendMode === 'static' ? (
                   <>
-                    <p>Mode Hosting Statis (GitHub Pages):</p>
+                    <p>Mode Hosting Statis (Vercel / GitHub Pages):</p>
                     <p className="text-[#D6CFC2]">
-                      Tambahkan Variables <span className="font-mono">VITE_SUPABASE_URL</span> &amp;{' '}
-                      <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di GitHub Actions
-                      untuk mengaktifkan login &amp; edit admin.
+                      Tambahkan Environment Variables{' '}
+                      <span className="font-mono">VITE_SUPABASE_URL</span> &amp;{' '}
+                      <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di Vercel (lalu
+                      Redeploy) atau di GitHub Actions Variables untuk mengaktifkan login &amp;
+                      edit admin.
                     </p>
                   </>
                 ) : (

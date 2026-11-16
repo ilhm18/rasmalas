@@ -238,11 +238,32 @@ export async function sbInsertShoutout(
   if (error) throw new Error(error.message);
 }
 
+function isLikelySecretApiKey(key: string): boolean {
+  if (!key) return false;
+  if (key.startsWith('sb_secret_')) return true;
+  const parts = key.split('.');
+  if (parts.length === 3) {
+    try {
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64)) as { role?: string };
+      return payload.role === 'service_role';
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 // Admin Auth
 export async function sbAdminLogin(
   email: string,
   password: string
 ): Promise<{ email: string; token: string }> {
+  if (isLikelySecretApiKey(SUPABASE_ANON_KEY)) {
+    throw new Error(
+      'VITE_SUPABASE_ANON_KEY masih terisi Secret/service_role key. Ganti dengan Publishable key (sb_publishable_...) atau anon public key di Environment Variables, lalu Redeploy tanpa Build Cache.'
+    );
+  }
   const client = getBrowserSupabaseClient();
   if (!client) {
     throw new Error('Supabase belum dikonfigurasi untuk mode statis.');
@@ -252,7 +273,13 @@ export async function sbAdminLogin(
     password,
   });
   if (error || !data.session || !data.user?.email) {
-    throw new Error(error?.message || 'Email atau kata sandi admin Supabase tidak sesuai.');
+    const rawMsg = error?.message || '';
+    if (rawMsg.toLowerCase().includes('secret api key')) {
+      throw new Error(
+        'VITE_SUPABASE_ANON_KEY masih terisi Secret/service_role key. Ganti dengan Publishable key (sb_publishable_...) atau anon public key, lalu Redeploy tanpa Build Cache.'
+      );
+    }
+    throw new Error(rawMsg || 'Email atau kata sandi admin Supabase tidak sesuai.');
   }
 
   const { data: adminRow, error: adminErr } = await client
