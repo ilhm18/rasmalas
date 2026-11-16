@@ -15,7 +15,7 @@ export function HeroSection({
 }: HeroSectionProps) {
   return (
     <section id="top" className="border-b border-[#2A3024]">
-      <div className="mx-auto max-w-[1200px] px-6 pt-10 pb-12 lg:pt-14 lg:pb-16">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 pt-8 sm:pt-10 pb-12 lg:pt-14 lg:pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
           <div className="lg:col-span-6 flex flex-col justify-between py-2">
             <div>

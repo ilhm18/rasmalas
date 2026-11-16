@@ -10,6 +10,7 @@ export interface BandMember {
   role: string;
   instrument: string;
   origin: string;
+  instagramUrl?: string;
 }
 
 export interface BandStat {

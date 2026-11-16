@@ -138,6 +138,7 @@ export function AdminDashboard({
     role: '',
     instrument: '',
     origin: '',
+    instagramUrl: '',
   });
 
   // Website Pages / Sections CRUD state
@@ -163,18 +164,19 @@ export function AdminDashboard({
     showInNav: true,
   });
 
-  // Tracks CRUD state
+  // Tracks CRUD state (UI focused on Judul Lagu, File Audio, Foto Sampul, Lirik Lagu)
   const [trackSearch, setTrackSearch] = useState('');
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [trackForm, setTrackForm] = useState({
     title: '',
-    album: 'Pesisir Selatan (LP)',
+    album: 'Rasmalas Audio',
     year: '2026',
     bpm: 76,
     musicalKey: 'Am',
+    durationSec: 26,
     audioUrl: '',
     coverUrl: '/src/assets/images/album_cover_senja_1794832345337.jpg',
-    credits: 'Rasmalas Collective',
+    credits: 'Rasmalas',
     lyrics: '',
   });
 
@@ -367,17 +369,25 @@ export function AdminDashboard({
       role: m.role,
       instrument: m.instrument,
       origin: m.origin,
+      instagramUrl: m.instagramUrl ?? '',
     });
   }
 
   function resetMemberForm() {
     setEditingMemberId(null);
-    setNewMember({ name: '', role: '', instrument: '', origin: '' });
+    setNewMember({
+      name: '',
+      role: '',
+      instrument: '',
+      origin: '',
+      instagramUrl: '',
+    });
   }
 
   function handleAddMember(e: FormEvent) {
     e.preventDefault();
     if (!newMember.name.trim() || !newMember.role.trim()) return;
+    const cleanIg = newMember.instagramUrl?.trim() || undefined;
     if (editingMemberId) {
       const updated = {
         ...profileForm,
@@ -389,6 +399,7 @@ export function AdminDashboard({
                 role: newMember.role.trim(),
                 instrument: newMember.instrument.trim() || 'Vokal & Instrumen',
                 origin: newMember.origin.trim() || profileForm.originCity,
+                instagramUrl: cleanIg,
               }
             : m
         ),
@@ -405,6 +416,7 @@ export function AdminDashboard({
       role: newMember.role.trim(),
       instrument: newMember.instrument.trim() || 'Vokal & Instrumen',
       origin: newMember.origin.trim() || profileForm.originCity,
+      instagramUrl: cleanIg,
     };
     const updated = { ...profileForm, members: [...profileForm.members, member] };
     setProfileForm(updated);
@@ -657,6 +669,7 @@ export function AdminDashboard({
       year: t.year,
       bpm: t.bpm,
       musicalKey: t.musicalKey,
+      durationSec: t.durationSec || 26,
       audioUrl: t.audioUrl ?? '',
       coverUrl: t.coverUrl,
       credits: t.credits,
@@ -668,13 +681,14 @@ export function AdminDashboard({
     setEditingTrackId(null);
     setTrackForm({
       title: '',
-      album: 'Pesisir Selatan (LP)',
+      album: 'Rasmalas Audio',
       year: '2026',
       bpm: 76,
       musicalKey: 'Am',
+      durationSec: 26,
       audioUrl: '',
       coverUrl: '/src/assets/images/album_cover_senja_1794832345337.jpg',
-      credits: 'Rasmalas Collective',
+      credits: 'Rasmalas',
       lyrics: '',
     });
   }
@@ -684,6 +698,7 @@ export function AdminDashboard({
     if (!trackForm.title.trim()) return;
     setSaving(true);
     try {
+      const resolvedDuration = Math.max(1, Math.round(trackForm.durationSec || 26));
       if (backendMode === 'supabase') {
         const existing = editingTrackId
           ? bandState.tracks.find((t) => t.id === editingTrackId)
@@ -691,9 +706,9 @@ export function AdminDashboard({
         await sbUpsertTrack({
           id: existing?.id ?? `trk-${Date.now().toString(36)}`,
           title: trackForm.title.trim(),
-          album: trackForm.album.trim() || 'Single Terbaru',
+          album: trackForm.album.trim() || 'Rasmalas Audio',
           year: trackForm.year.trim() || '2026',
-          durationSec: existing?.durationSec ?? 26,
+          durationSec: resolvedDuration,
           bpm: Number(trackForm.bpm) || 76,
           musicalKey: trackForm.musicalKey.trim() || 'Am',
           synthSeed: existing?.synthSeed ?? bandState.tracks.length + 1,
@@ -702,7 +717,7 @@ export function AdminDashboard({
             '/src/assets/images/album_cover_senja_1794832345337.jpg',
           audioUrl: trackForm.audioUrl.trim() || undefined,
           plays: existing?.plays ?? 0,
-          credits: trackForm.credits.trim() || 'Rasmalas Collective',
+          credits: trackForm.credits.trim() || 'Rasmalas',
           lyrics: trackForm.lyrics.trim(),
         });
       } else {
@@ -715,9 +730,9 @@ export function AdminDashboard({
           headers: buildHeaders(),
           body: JSON.stringify({
             ...trackForm,
-            bpm: Number(trackForm.bpm),
+            bpm: Number(trackForm.bpm) || 76,
             audioUrl: trackForm.audioUrl.trim() || undefined,
-            durationSec: 26,
+            durationSec: resolvedDuration,
           }),
         });
         const data = (await res.json()) as { error?: string };
@@ -903,9 +918,28 @@ export function AdminDashboard({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+
+    const detectedDuration = await new Promise<number>((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const probe = new Audio(objectUrl);
+      probe.onloadedmetadata = () => {
+        const sec = Number.isFinite(probe.duration) ? Math.round(probe.duration) : 26;
+        URL.revokeObjectURL(objectUrl);
+        resolve(Math.max(1, sec));
+      };
+      probe.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(26);
+      };
+    });
+
     const uploaded = await uploadMediaFile(file, 'audio', 'audio');
     if (uploaded) {
-      setTrackForm((prev) => ({ ...prev, audioUrl: uploaded.url }));
+      setTrackForm((prev) => ({
+        ...prev,
+        audioUrl: uploaded.url,
+        durationSec: detectedDuration,
+      }));
       showNotice('File audio lagu berhasil diunggah.');
     }
   }
@@ -1185,9 +1219,7 @@ export function AdminDashboard({
   const filteredTracks = useMemo(() => {
     const q = trackSearch.trim().toLowerCase();
     if (!q) return bandState.tracks;
-    return bandState.tracks.filter(
-      (t) => t.title.toLowerCase().includes(q) || t.album.toLowerCase().includes(q)
-    );
+    return bandState.tracks.filter((t) => t.title.toLowerCase().includes(q));
   }, [bandState.tracks, trackSearch]);
 
   const filteredTours = useMemo(() => {
@@ -1535,8 +1567,7 @@ export function AdminDashboard({
                     {upcomingTours.length} kota
                   </p>
                   <p className="text-xs font-mono tabular-nums text-[#EAB308]">
-                    {bandState.tours.reduce((a, t) => a + t.rsvpCount, 0).toLocaleString('id-ID')}{' '}
-                    minat hadir
+                    {bandState.tours.length} total jadwal panggung
                   </p>
                 </div>
 
@@ -2375,7 +2406,10 @@ export function AdminDashboard({
                   )}
                 </div>
 
-                <form onSubmit={handleAddMember} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                <form
+                  onSubmit={handleAddMember}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+                >
                   <input
                     type="text"
                     required
@@ -2389,7 +2423,7 @@ export function AdminDashboard({
                     required
                     value={newMember.role}
                     onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
-                    placeholder="Peran (mis. Bass & Dub)"
+                    placeholder="Peran (mis. Vokal & Gitar)"
                     className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   />
                   <input
@@ -2410,6 +2444,15 @@ export function AdminDashboard({
                     placeholder="Kota Asal"
                     className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   />
+                  <input
+                    type="text"
+                    value={newMember.instagramUrl ?? ''}
+                    onChange={(e) =>
+                      setNewMember({ ...newMember, instagramUrl: e.target.value })
+                    }
+                    placeholder="Link Bio Instagram (https://instagram.com/... atau @akun)"
+                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                  />
                   <button
                     type="submit"
                     className="inline-flex items-center justify-center gap-2 min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
@@ -2426,11 +2469,16 @@ export function AdminDashboard({
                 <div className="divide-y divide-[#2A3024]">
                   {profileForm.members.map((m) => (
                     <div key={m.id} className="py-3 flex items-center justify-between gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-semibold text-[#F5F2EB]">{m.name}</p>
                         <p className="text-xs text-[#A8A092]">
                           {m.role} · {m.instrument} · {m.origin}
                         </p>
+                        {m.instagramUrl && (
+                          <p className="text-xs text-[#EAB308] truncate mt-0.5">
+                            Instagram: {m.instagramUrl}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
@@ -2462,7 +2510,7 @@ export function AdminDashboard({
             <div className="space-y-6">
               <form
                 onSubmit={handleSaveTrack}
-                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-4"
+                className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 sm:p-6 space-y-5"
               >
                 <div className="flex items-center justify-between gap-4">
                   <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
@@ -2479,132 +2527,99 @@ export function AdminDashboard({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#D6CFC2]">
+                    Judul Lagu
+                  </label>
                   <input
                     type="text"
                     required
                     value={trackForm.title}
                     onChange={(e) => setTrackForm({ ...trackForm, title: e.target.value })}
-                    placeholder="Judul Lagu"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={trackForm.album}
-                    onChange={(e) => setTrackForm({ ...trackForm, album: e.target.value })}
-                    placeholder="Nama Album"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <input
-                    type="text"
-                    value={trackForm.year}
-                    onChange={(e) => setTrackForm({ ...trackForm, year: e.target.value })}
-                    placeholder="Tahun Rilis"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                    placeholder="Masukkan judul lagu..."
+                    className="w-full min-h-[42px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="number"
-                    min={64}
-                    max={120}
-                    value={trackForm.bpm}
-                    onChange={(e) =>
-                      setTrackForm({ ...trackForm, bpm: Number(e.target.value) })
-                    }
-                    placeholder="BPM (64-120)"
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  />
-                  <select
-                    value={trackForm.musicalKey}
-                    onChange={(e) =>
-                      setTrackForm({ ...trackForm, musicalKey: e.target.value })
-                    }
-                    className="min-h-[40px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                  >
-                    {['Am', 'Bm', 'Cm', 'Dm', 'Em', 'Fm', 'Gm', 'C', 'D', 'F', 'G'].map(
-                      (k) => (
-                        <option key={k} value={k}>
-                          Nada Dasar: {k}
-                        </option>
-                      )
-                    )}
-                  </select>
-                  <div className="flex items-center gap-2 min-h-[40px] px-3 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                    <label className="inline-flex items-center gap-2 text-xs font-medium text-[#EAB308] cursor-pointer">
-                      <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                      {uploadingTarget === 'audio'
-                        ? 'Mengunggah Audio...'
-                        : trackForm.audioUrl
-                          ? 'Ganti File Audio (MP3/WAV)'
-                          : 'Unggah Audio MP3/WAV (opsional)'}
-                      <input
-                        type="file"
-                        accept="audio/*"
-                        disabled={uploadingTarget === 'audio'}
-                        onChange={handleTrackAudioUpload}
-                        className="sr-only"
-                      />
-                    </label>
-                    {trackForm.audioUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setTrackForm({ ...trackForm, audioUrl: '' })}
-                        className="ml-auto text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
-                      >
-                        Hapus Audio
-                      </button>
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <span className="block text-xs font-medium text-[#D6CFC2]">
+                      File Upload Lagu (Audio)
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 min-h-[48px] px-3 py-2 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#EAB308] cursor-pointer">
+                        <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
+                        {uploadingTarget === 'audio'
+                          ? 'Mengunggah Lagu...'
+                          : trackForm.audioUrl
+                            ? 'Ganti File Lagu (MP3/WAV)'
+                            : 'Unggah File Lagu (MP3/WAV/M4A)'}
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          disabled={uploadingTarget === 'audio'}
+                          onChange={handleTrackAudioUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                      {trackForm.audioUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setTrackForm({ ...trackForm, audioUrl: '' })}
+                          className="ml-auto text-[11px] text-[#FCA5A5] hover:underline cursor-pointer"
+                        >
+                          Hapus Lagu
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="block text-xs font-medium text-[#D6CFC2]">
+                      Upload Foto Sampul
+                    </span>
+                    <div className="flex items-center gap-3 min-h-[48px] px-3 py-1.5 bg-[#090B08] border border-[#2A3024] rounded-lg">
+                      {trackForm.coverUrl && (
+                        <img
+                          src={resolveAssetUrl(trackForm.coverUrl)}
+                          alt="Pratinjau foto sampul"
+                          className="w-9 h-9 rounded object-cover border border-[#2A3024] shrink-0"
+                        />
+                      )}
+                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#F5F2EB] hover:text-[#EAB308] cursor-pointer">
+                        <Upload className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                        {uploadingTarget === 'cover'
+                          ? 'Mengunggah Sampul...'
+                          : 'Unggah Foto Sampul'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingTarget === 'cover'}
+                          onChange={handleTrackCoverUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  <div className="flex items-center gap-3 min-h-[44px] px-3 py-1.5 bg-[#090B08] border border-[#2A3024] rounded-lg">
-                    {trackForm.coverUrl && (
-                      <img
-                        src={resolveAssetUrl(trackForm.coverUrl)}
-                        alt="Pratinjau sampul"
-                        className="w-9 h-9 rounded object-cover border border-[#2A3024] shrink-0"
-                      />
-                    )}
-                    <label className="inline-flex items-center gap-2 text-xs font-medium text-[#F5F2EB] hover:text-[#EAB308] cursor-pointer">
-                      <Upload className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
-                      {uploadingTarget === 'cover'
-                        ? 'Mengunggah Sampul...'
-                        : 'Unggah Foto Sampul Album'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={uploadingTarget === 'cover'}
-                        onChange={handleTrackCoverUpload}
-                        className="sr-only"
-                      />
-                    </label>
-                  </div>
-                  <input
-                    type="text"
-                    value={trackForm.credits}
-                    onChange={(e) =>
-                      setTrackForm({ ...trackForm, credits: e.target.value })
-                    }
-                    placeholder="Kredit Rekaman & Personel"
-                    className="min-h-[44px] px-3 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#D6CFC2]">
+                    Lirik Lagu
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={trackForm.lyrics}
+                    onChange={(e) => setTrackForm({ ...trackForm, lyrics: e.target.value })}
+                    placeholder="Tulis lirik lagu lengkap di sini..."
+                    className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                   />
                 </div>
-
-                <textarea
-                  rows={2}
-                  value={trackForm.lyrics}
-                  onChange={(e) => setTrackForm({ ...trackForm, lyrics: e.target.value })}
-                  placeholder="Lirik lagu atau catatan dub..."
-                  className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
-                />
 
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
+                  disabled={saving || uploadingTarget === 'audio' || uploadingTarget === 'cover'}
+                  className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                 >
                   {editingTrackId ? (
                     <Check className="w-4 h-4" aria-hidden="true" />
@@ -2629,8 +2644,8 @@ export function AdminDashboard({
                       type="search"
                       value={trackSearch}
                       onChange={(e) => setTrackSearch(e.target.value)}
-                      placeholder="Cari judul atau album..."
-                      className="min-h-[36px] pl-8 pr-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      placeholder="Cari judul lagu..."
+                      className="w-full sm:w-56 min-h-[36px] pl-8 pr-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                     />
                   </div>
                 </div>
@@ -2641,14 +2656,21 @@ export function AdminDashboard({
                       key={t.id}
                       className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-[#171C14]"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#F5F2EB] truncate">
-                          {t.title}
-                        </p>
-                        <p className="text-xs font-mono text-[#A8A092]">
-                          {t.album} · {t.bpm} BPM · {t.musicalKey} ·{' '}
-                          {t.plays.toLocaleString('id-ID')} putar
-                        </p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={resolveAssetUrl(t.coverUrl)}
+                          alt={t.title}
+                          className="w-10 h-10 rounded-lg object-cover border border-[#2A3024] shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[#F5F2EB] truncate">
+                            {t.title}
+                          </p>
+                          <p className="text-xs font-mono text-[#A8A092] truncate">
+                            {t.audioUrl ? 'Audio terunggah' : 'Audio bawaan'} ·{' '}
+                            {t.plays.toLocaleString('id-ID')} putar
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
@@ -2838,7 +2860,7 @@ export function AdminDashboard({
                           {t.venue} · {t.city}
                         </p>
                         <p className="text-xs font-mono text-[#A8A092]">
-                          {t.date} · {t.stageTime} · {t.priceLabel} · {t.rsvpCount} minat
+                          {t.date} · {t.stageTime} · {t.priceLabel}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">

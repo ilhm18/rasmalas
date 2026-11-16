@@ -131,6 +131,7 @@ export async function fetchBandStateFromSupabase(): Promise<BandState> {
         role: m.role,
         instrument: m.instrument,
         origin: m.origin,
+        instagramUrl: m.instagram_url ?? undefined,
       })),
     },
     siteSections: hydratedSections,
@@ -422,6 +423,7 @@ export async function sbSaveProfileAndMembers(profile: BandProfile): Promise<voi
         role: m.role,
         instrument: m.instrument,
         origin: m.origin,
+        instagram_url: m.instagramUrl ?? null,
         sort_order: idx,
       })),
       { onConflict: 'id' }

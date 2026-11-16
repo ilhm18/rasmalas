@@ -1,9 +1,9 @@
 -- ============================================================================
--- RASMALAS OFFICIAL — SUPABASE POSTGRESQL SCHEMA & ADMIN RLS ACCESS
+-- RASMALAS OFFICIAL — SUPABASE POSTGRESQL SCHEMA, REALTIME, STORAGE & ADMIN RLS
 -- Jalankan seluruh skrip ini di Supabase Dashboard -> SQL Editor -> Run
 -- ============================================================================
 
--- 1. Tabel Daftar Admin & Hak Akses (Edit & Delete di Dashboard Admin)
+-- 1. Tabel Daftar Admin & Hak Akses (Tambah, Edit & Hapus di Dashboard Admin)
 CREATE TABLE IF NOT EXISTS public.admin_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
@@ -37,13 +37,15 @@ CREATE TABLE IF NOT EXISTS public.band_profile (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Tambah kolom Hero & Footer ke band_profile bila tabel sudah ada sebelumnya
+-- Tambah kolom baru ke band_profile bila tabel sudah ada sebelumnya
 ALTER TABLE public.band_profile
+  ADD COLUMN IF NOT EXISTS logo_url TEXT,
   ADD COLUMN IF NOT EXISTS hero_cta_primary TEXT NOT NULL DEFAULT 'Putar Album Terbaru',
   ADD COLUMN IF NOT EXISTS hero_cta_secondary TEXT NOT NULL DEFAULT 'Lihat Jadwal',
   ADD COLUMN IF NOT EXISTS hero_card_kicker TEXT NOT NULL DEFAULT 'Jadwal Panggung Nusantara',
   ADD COLUMN IF NOT EXISTS hero_card_title TEXT NOT NULL DEFAULT 'Sesi Panggung Terbuka & 12-Stack Sound System',
-  ADD COLUMN IF NOT EXISTS footer_note TEXT NOT NULL DEFAULT 'Roots Reggae & Analog Dub';
+  ADD COLUMN IF NOT EXISTS footer_note TEXT NOT NULL DEFAULT 'Roots Reggae & Analog Dub',
+  ADD COLUMN IF NOT EXISTS stats JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 2B. Manajemen Halaman & Bagian Website (Atur, Edit, Tambah, Urutkan, Hapus)
 CREATE TABLE IF NOT EXISTS public.site_sections (
@@ -65,6 +67,18 @@ CREATE TABLE IF NOT EXISTS public.site_sections (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.site_sections
+  ADD COLUMN IF NOT EXISTS subtitle TEXT,
+  ADD COLUMN IF NOT EXISTS body TEXT,
+  ADD COLUMN IF NOT EXISTS image_url TEXT,
+  ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image',
+  ADD COLUMN IF NOT EXISTS cta_label TEXT,
+  ADD COLUMN IF NOT EXISTS cta_url TEXT,
+  ADD COLUMN IF NOT EXISTS builtin_key TEXT,
+  ADD COLUMN IF NOT EXISTS visible BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS show_in_nav BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
 -- 3. Personel / Anggota Band
 CREATE TABLE IF NOT EXISTS public.band_members (
   id TEXT PRIMARY KEY,
@@ -72,9 +86,13 @@ CREATE TABLE IF NOT EXISTS public.band_members (
   role TEXT NOT NULL,
   instrument TEXT NOT NULL DEFAULT '',
   origin TEXT NOT NULL DEFAULT '',
+  instagram_url TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.band_members
+  ADD COLUMN IF NOT EXISTS instagram_url TEXT;
 
 -- 4. Katalog Lagu & Pemutar Musik Streaming
 CREATE TABLE IF NOT EXISTS public.tracks (
@@ -94,6 +112,10 @@ CREATE TABLE IF NOT EXISTS public.tracks (
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.tracks
+  ADD COLUMN IF NOT EXISTS audio_url TEXT,
+  ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 
 -- 5. Jadwal Penampilan & Panggung
 CREATE TABLE IF NOT EXISTS public.tours (
@@ -125,6 +147,9 @@ CREATE TABLE IF NOT EXISTS public.gallery_photos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.gallery_photos
+  ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video'));
+
 -- 7. Kanal Media Sosial
 CREATE TABLE IF NOT EXISTS public.social_channels (
   platform TEXT PRIMARY KEY CHECK (platform IN ('Instagram', 'YouTube', 'Spotify', 'TikTok')),
@@ -148,10 +173,6 @@ CREATE TABLE IF NOT EXISTS public.social_posts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Tambah kolom media_type bila tabel sudah dibuat sebelumnya
-ALTER TABLE public.gallery_photos
-  ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video'));
-
 ALTER TABLE public.social_posts
   ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video'));
 
@@ -165,20 +186,36 @@ CREATE TABLE IF NOT EXISTS public.fan_shoutouts (
 );
 
 -- ============================================================================
--- FUNGSI OTORISASI ADMIN (ROW LEVEL SECURITY HELPERS)
+-- FUNGSI OTORISASI ADMIN & RPC PUBLIK
 -- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.current_user_email()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT lower(
+    COALESCE(
+      NULLIF(auth.jwt() ->> 'email', ''),
+      (SELECT email FROM auth.users WHERE id = auth.uid()),
+      ''
+    )
+  );
+$$;
 
 CREATE OR REPLACE FUNCTION public.is_rasmalas_admin()
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
   SELECT EXISTS (
     SELECT 1
     FROM public.admin_users
-    WHERE lower(email) = lower(COALESCE(auth.jwt() ->> 'email', ''))
+    WHERE lower(email) = public.current_user_email()
       AND role IN ('admin', 'editor')
   );
 $$;
@@ -188,12 +225,12 @@ RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
   SELECT EXISTS (
     SELECT 1
     FROM public.admin_users
-    WHERE lower(email) = lower(COALESCE(auth.jwt() ->> 'email', ''))
+    WHERE lower(email) = public.current_user_email()
       AND can_edit = true
   );
 $$;
@@ -203,17 +240,17 @@ RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
   SELECT EXISTS (
     SELECT 1
     FROM public.admin_users
-    WHERE lower(email) = lower(COALESCE(auth.jwt() ->> 'email', ''))
+    WHERE lower(email) = public.current_user_email()
       AND can_delete = true
   );
 $$;
 
--- Fungsi RPC aman untuk interaksi publik (tanpa memberi akses UPDATE tabel ke publik)
+-- Fungsi RPC aman untuk interaksi publik (tanpa membuka UPDATE langsung ke publik)
 CREATE OR REPLACE FUNCTION public.increment_track_play(track_id TEXT)
 RETURNS VOID
 LANGUAGE sql
@@ -242,7 +279,50 @@ AS $$
 $$;
 
 -- ============================================================================
--- AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN EDIT / HAPUS DASHBOARD ADMIN
+-- HAK AKSES SCHEMA & TABEL (GRANTS) UNTUK ANON & AUTHENTICATED
+-- ============================================================================
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+GRANT SELECT ON
+  public.band_profile,
+  public.site_sections,
+  public.band_members,
+  public.tracks,
+  public.tours,
+  public.gallery_photos,
+  public.social_channels,
+  public.social_posts,
+  public.fan_shoutouts
+TO anon, authenticated;
+
+GRANT INSERT ON public.fan_shoutouts TO anon, authenticated;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  public.admin_users,
+  public.band_profile,
+  public.site_sections,
+  public.band_members,
+  public.tracks,
+  public.tours,
+  public.gallery_photos,
+  public.social_channels,
+  public.social_posts,
+  public.fan_shoutouts
+TO authenticated;
+
+GRANT EXECUTE ON FUNCTION
+  public.current_user_email(),
+  public.is_rasmalas_admin(),
+  public.can_admin_edit(),
+  public.can_admin_delete(),
+  public.increment_track_play(TEXT),
+  public.increment_tour_rsvp(TEXT),
+  public.increment_post_like(TEXT)
+TO anon, authenticated;
+
+-- ============================================================================
+-- AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN TAMBAH / EDIT / HAPUS ADMIN
 -- ============================================================================
 
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
@@ -261,7 +341,7 @@ DROP POLICY IF EXISTS "Admin dapat melihat daftar admin sendiri" ON public.admin
 CREATE POLICY "Admin dapat melihat daftar admin sendiri"
   ON public.admin_users FOR SELECT
   TO authenticated
-  USING (lower(email) = lower(COALESCE(auth.jwt() ->> 'email', '')) OR public.is_rasmalas_admin());
+  USING (lower(email) = public.current_user_email() OR public.is_rasmalas_admin());
 
 DROP POLICY IF EXISTS "Admin utama kelola admin_users" ON public.admin_users;
 CREATE POLICY "Admin utama kelola admin_users"
@@ -269,11 +349,6 @@ CREATE POLICY "Admin utama kelola admin_users"
   TO authenticated
   USING (public.is_rasmalas_admin())
   WITH CHECK (public.is_rasmalas_admin());
-
--- Macro kebijakan untuk semua tabel konten band:
--- Publik: SELECT (baca website)
--- Admin (can_edit = true): INSERT & UPDATE (tambah & edit di dashboard admin)
--- Admin (can_delete = true): DELETE (hapus di dashboard admin)
 
 -- band_profile
 DROP POLICY IF EXISTS "Publik baca profil band" ON public.band_profile;
@@ -285,7 +360,7 @@ CREATE POLICY "Admin edit profil band" ON public.band_profile FOR UPDATE TO auth
 DROP POLICY IF EXISTS "Admin hapus profil band" ON public.band_profile;
 CREATE POLICY "Admin hapus profil band" ON public.band_profile FOR DELETE TO authenticated USING (public.can_admin_delete());
 
--- site_sections (Bagian Halaman Website)
+-- site_sections (Halaman Website)
 DROP POLICY IF EXISTS "Publik baca bagian halaman" ON public.site_sections;
 CREATE POLICY "Publik baca bagian halaman" ON public.site_sections FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin tambah bagian halaman" ON public.site_sections;
@@ -355,7 +430,7 @@ CREATE POLICY "Admin edit postingan sosial" ON public.social_posts FOR UPDATE TO
 DROP POLICY IF EXISTS "Admin hapus postingan sosial" ON public.social_posts;
 CREATE POLICY "Admin hapus postingan sosial" ON public.social_posts FOR DELETE TO authenticated USING (public.can_admin_delete());
 
--- fan_shoutouts (Publik dapat baca & kirim sapaan; Admin dapat edit & hapus)
+-- fan_shoutouts
 DROP POLICY IF EXISTS "Publik baca sapaan" ON public.fan_shoutouts;
 CREATE POLICY "Publik baca sapaan" ON public.fan_shoutouts FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Publik kirim sapaan" ON public.fan_shoutouts;
@@ -366,10 +441,9 @@ DROP POLICY IF EXISTS "Admin hapus sapaan" ON public.fan_shoutouts;
 CREATE POLICY "Admin hapus sapaan" ON public.fan_shoutouts FOR DELETE TO authenticated USING (public.can_admin_delete());
 
 -- ============================================================================
--- DATA AWAL ADMIN & KONTEN BAND RASMALAS
+-- DATA AWAL ADMIN (TERMASUK SINKRONISASI OTOMATIS USER AUTH YANG SUDAH ADA)
 -- ============================================================================
 
--- Daftarkan email admin yang berhak EDIT & HAPUS di Dashboard Admin:
 INSERT INTO public.admin_users (email, full_name, role, can_edit, can_delete)
 VALUES
   ('hamzhome18@gmail.com', 'Owner Rasmalas', 'admin', true, true),
@@ -380,7 +454,26 @@ SET
   can_edit = true,
   can_delete = true;
 
--- Seed awal profil band Rasmalas (hanya jika belum ada)
+-- Sinkronkan akun yang sudah dibuat di Authentication -> Users agar otomatis punya akses Edit & Delete
+INSERT INTO public.admin_users (email, full_name, role, can_edit, can_delete)
+SELECT
+  lower(u.email),
+  COALESCE(NULLIF(u.raw_user_meta_data ->> 'full_name', ''), 'Admin Rasmalas'),
+  'admin',
+  true,
+  true
+FROM auth.users u
+WHERE u.email IS NOT NULL
+ON CONFLICT (email) DO UPDATE
+SET
+  role = 'admin',
+  can_edit = true,
+  can_delete = true;
+
+-- ============================================================================
+-- SEED AWAL KONTEN BAND RASMALAS
+-- ============================================================================
+
 INSERT INTO public.band_profile (
   id, name, logo_url, kicker, headline, subheadline, bio, studio_quote,
   origin_city, booking_email, hero_image, studio_image, stats
@@ -407,11 +500,11 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.band_members (id, name, role, instrument, origin, sort_order)
+INSERT INTO public.band_members (id, name, role, instrument, origin, instagram_url, sort_order)
 VALUES
-  ('m1', 'Raka Mahendra', 'Vokal Utama & Gitar Skank', 'Hollow-Body Guitar · Mic', 'Yogyakarta', 0),
-  ('m2', 'Bima Pratama', 'Sub-Bass & Dub Director', '4-String Jazz Bass · Tape Delay', 'Denpasar', 1),
-  ('m3', 'Surya & Kawan Brass', 'Drum One-Drop, Organ & Brass', 'Hammond Organ · Terompet · Saksofon', 'Bandung & Lombok', 2)
+  ('m1', 'Raka Mahendra', 'Vokal Utama & Gitar Skank', 'Hollow-Body Guitar · Mic', 'Yogyakarta', 'https://instagram.com/raka.rasmalas', 0),
+  ('m2', 'Bima Pratama', 'Sub-Bass & Dub Director', '4-String Jazz Bass · Tape Delay', 'Denpasar', 'https://instagram.com/bima.rasmalas', 1),
+  ('m3', 'Surya & Kawan Brass', 'Drum One-Drop, Organ & Brass', 'Hammond Organ · Terompet · Saksofon', 'Bandung & Lombok', 'https://instagram.com/surya.rasmalas', 2)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.tracks (id, title, album, year, duration_sec, bpm, musical_key, synth_seed, cover_url, plays, credits, lyrics, sort_order)
@@ -474,6 +567,38 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
+-- SUPABASE REALTIME PUBLICATION (PEMBARUAN LANGSUNG TANPA REFRESH)
+-- ============================================================================
+
+DO $$
+DECLARE
+  tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'band_profile',
+    'site_sections',
+    'band_members',
+    'tracks',
+    'tours',
+    'gallery_photos',
+    'social_channels',
+    'social_posts',
+    'fan_shoutouts'
+  ]
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = tbl
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', tbl);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ============================================================================
 -- SUPABASE STORAGE BUCKET & RLS POLICIES (UPLOAD FOTO, VIDEO & AUDIO ADMIN)
 -- ============================================================================
 
@@ -488,12 +613,16 @@ VALUES (
     'image/png',
     'image/webp',
     'image/gif',
+    'image/svg+xml',
     'video/mp4',
     'video/webm',
     'video/quicktime',
     'audio/mpeg',
     'audio/wav',
-    'audio/ogg'
+    'audio/ogg',
+    'audio/mp4',
+    'audio/x-m4a',
+    'audio/aac'
   ]
 )
 ON CONFLICT (id) DO UPDATE

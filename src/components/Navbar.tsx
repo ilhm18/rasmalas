@@ -31,13 +31,13 @@ export function Navbar({
   return (
     <header className="sticky top-0 z-40 border-b border-[#2A3024] bg-[#090C08]/85 backdrop-blur-md">
       <div className="h-[3px] w-full reggae-hairline" aria-hidden="true" />
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-8 px-6 py-3">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 sm:gap-8 px-4 sm:px-6 py-3">
         <a
           href="#top"
           className="inline-flex items-center whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAB308] rounded-sm"
         >
           {logoUrl ? (
-            <span className="inline-block h-10 w-36 overflow-hidden">
+            <span className="inline-block h-9 w-28 sm:h-10 sm:w-36 overflow-hidden">
               <img
                 src={resolveAssetUrl(logoUrl)}
                 alt={bandName}
@@ -45,7 +45,7 @@ export function Navbar({
               />
             </span>
           ) : (
-            <span className="font-display text-xl font-bold tracking-tight text-[#F5F2EB]">
+            <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#F5F2EB]">
               {bandName}
             </span>
           )}
@@ -53,7 +53,7 @@ export function Navbar({
 
         <nav
           aria-label="Navigasi utama"
-          className="hidden md:flex items-center gap-6 text-sm font-medium text-[#A8A092] overflow-x-auto"
+          className="hidden md:flex items-center gap-5 lg:gap-6 text-sm font-medium text-[#A8A092] overflow-x-auto"
         >
           {navLinks.map((item) => (
             <a
@@ -66,13 +66,13 @@ export function Navbar({
           ))}
         </nav>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={onOpenAdmin}
-            className="min-h-[40px] px-4 py-2 text-xs font-semibold text-[#0C0B09] bg-[#EAB308] rounded-lg transition-colors duration-150 hover:bg-[#FACC15] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5F2EB]"
+            className="min-h-[40px] px-3.5 sm:px-4 py-2 text-xs font-semibold text-[#0C0B09] bg-[#EAB308] rounded-lg transition-colors duration-150 hover:bg-[#FACC15] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5F2EB]"
           >
-            {isAdmin ? 'Kelola Konten' : 'Masuk Admin'}
+            {isAdmin ? 'Dashboard Admin' : 'Login Admin'}
           </button>
 
           <button

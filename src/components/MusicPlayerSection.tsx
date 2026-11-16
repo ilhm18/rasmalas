@@ -74,8 +74,8 @@ export function MusicPlayerSection({
       id={sectionMeta?.slug || 'musik'}
       className="border-b border-[#2A2620] py-16 lg:py-20"
     >
-      <div className="mx-auto max-w-[1200px] px-6">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10">
           <div>
             <p className="text-xs font-medium tracking-wide text-[#EAB308] mb-2">
               {sectionMeta?.kicker || '02. Pemutar Musik Streaming'}
@@ -91,11 +91,11 @@ export function MusicPlayerSection({
         </div>
 
         {active ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Active Vinyl Deck */}
-            <div className="lg:col-span-5 rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm p-6 space-y-6">
-              <div className="flex items-center gap-5">
-                <div className="relative w-28 h-28 sm:w-32 sm:h-32 shrink-0">
+            <div className="lg:col-span-5 rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm p-5 sm:p-6 space-y-6">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="relative w-24 h-24 sm:w-32 sm:h-32 shrink-0">
                   <div
                     className={`w-full h-full rounded-full overflow-hidden border-4 border-[#2A2620] shadow-lg ${
                       isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'
@@ -103,8 +103,8 @@ export function MusicPlayerSection({
                   >
                     <ImageWithFallback
                       src={active.coverUrl}
-                      alt={`Sampul album ${active.title}`}
-                      title={active.album}
+                      alt={`Foto sampul ${active.title}`}
+                      title={active.title}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -115,15 +115,14 @@ export function MusicPlayerSection({
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-xs text-[#EAB308] font-medium truncate">
-                    {active.album} · {active.year}
+                  <p className="text-xs text-[#EAB308] font-medium">
+                    {isPlaying ? 'Sedang Diputar' : 'Siap Diputar'}
                   </p>
-                  <h3 className="font-display text-xl font-bold text-[#F5F2EB] leading-snug">
+                  <h3 className="font-display text-lg sm:text-xl font-bold text-[#F5F2EB] leading-snug break-words">
                     {active.title}
                   </h3>
                   <p className="text-xs text-[#A8A092] font-mono tabular-nums">
-                    {active.bpm} BPM · Nada {active.musicalKey} ·{' '}
-                    {active.plays.toLocaleString('id-ID')} putar
+                    {formatTime(effectiveDuration)} · {active.plays.toLocaleString('id-ID')} putar
                   </p>
                 </div>
               </div>
@@ -243,7 +242,7 @@ export function MusicPlayerSection({
                 </div>
               </div>
 
-              {/* Lyrics & Liner Notes Toggle */}
+              {/* Lyrics Toggle */}
               <div className="pt-2 border-t border-[#2A2620]">
                 <button
                   type="button"
@@ -251,14 +250,13 @@ export function MusicPlayerSection({
                   className="inline-flex items-center gap-2 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer min-h-[36px]"
                 >
                   <FileText className="w-4 h-4" aria-hidden="true" />
-                  {showLyrics ? 'Tutup Lirik & Catatan Rekaman' : 'Lihat Lirik & Catatan Rekaman'}
+                  {showLyrics ? 'Tutup Lirik Lagu' : 'Lihat Lirik Lagu'}
                 </button>
 
                 {showLyrics && (
-                  <div className="mt-3 pt-3 border-t border-[#2A2620]/70 space-y-2 text-sm">
-                    <p className="text-xs text-[#A8A092]">{active.credits}</p>
+                  <div className="mt-3 pt-3 border-t border-[#2A2620]/70 text-sm">
                     <p className="whitespace-pre-line text-[#D6CFC2] leading-relaxed">
-                      {active.lyrics}
+                      {active.lyrics?.trim() || 'Lirik lagu belum ditambahkan.'}
                     </p>
                   </div>
                 )}
@@ -267,7 +265,7 @@ export function MusicPlayerSection({
 
             {/* Tracklist Table */}
             <div className="lg:col-span-7 rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-[#2A2620] flex items-center justify-between">
+              <div className="px-4 sm:px-6 py-4 border-b border-[#2A2620] flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-[#F5F2EB]">
                   Daftar Putar ({tracks.length} Lagu)
                 </span>
@@ -291,12 +289,12 @@ export function MusicPlayerSection({
                           onSelectTrack(track);
                         }
                       }}
-                      className={`w-full text-left px-6 py-4 flex items-center justify-between gap-4 transition-colors duration-150 cursor-pointer ${
+                      className={`w-full text-left px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 transition-colors duration-150 cursor-pointer ${
                         isActive ? 'bg-[#1F1C17]' : 'hover:bg-[#1B1814]'
                       }`}
                     >
-                      <div className="flex items-center gap-4 min-w-0">
-                        <span className="w-7 text-xs font-mono tabular-nums text-[#A8A092] shrink-0">
+                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <span className="w-6 sm:w-7 text-xs font-mono tabular-nums text-[#A8A092] shrink-0">
                           {isCurrentlyPlaying ? (
                             <Pause className="w-4 h-4 text-[#EAB308]" />
                           ) : isActive ? (
@@ -323,12 +321,12 @@ export function MusicPlayerSection({
                             {track.title}
                           </p>
                           <p className="text-xs text-[#A8A092] truncate">
-                            {track.album} · {track.bpm} BPM · {track.musicalKey}
+                            {track.lyrics?.trim() ? 'Dilengkapi lirik lagu' : 'Audio streaming'}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-5 shrink-0 font-mono text-xs tabular-nums text-[#A8A092]">
+                      <div className="flex items-center gap-4 sm:gap-5 shrink-0 font-mono text-xs tabular-nums text-[#A8A092]">
                         <span className="hidden sm:inline">
                           {track.plays.toLocaleString('id-ID')} putar
                         </span>

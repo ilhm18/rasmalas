@@ -517,12 +517,13 @@ async function startServer(): Promise<void> {
       }));
     }
     if (Array.isArray(body.members)) {
-      current.members = body.members.slice(0, 6).map((m, idx) => ({
+      current.members = body.members.slice(0, 20).map((m, idx) => ({
         id: m.id || `m-${idx + 1}`,
         name: String(m.name ?? '').slice(0, 60),
         role: String(m.role ?? '').slice(0, 60),
         instrument: String(m.instrument ?? '').slice(0, 80),
         origin: String(m.origin ?? '').slice(0, 40),
+        instagramUrl: m.instagramUrl ? String(m.instagramUrl).trim().slice(0, 300) : undefined,
       }));
     }
 
@@ -806,6 +807,8 @@ async function startServer(): Promise<void> {
     if (typeof body.year === 'string') updated.year = body.year.trim().slice(0, 10);
     if (typeof body.bpm === 'number')
       updated.bpm = Math.max(64, Math.min(120, body.bpm));
+    if (typeof body.durationSec === 'number' && Number.isFinite(body.durationSec))
+      updated.durationSec = Math.max(10, Math.min(1800, Math.round(body.durationSec)));
     if (typeof body.musicalKey === 'string')
       updated.musicalKey = body.musicalKey.trim().slice(0, 6);
     if (typeof body.coverUrl === 'string' && body.coverUrl.trim())

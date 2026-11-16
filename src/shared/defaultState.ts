@@ -34,6 +34,7 @@ export const DEFAULT_STATE: BandState = {
         role: 'Vokal Utama & Gitar Skank',
         instrument: 'Hollow-Body Guitar · Mic',
         origin: 'Yogyakarta',
+        instagramUrl: 'https://instagram.com/raka.rasmalas',
       },
       {
         id: 'm2',
@@ -41,6 +42,7 @@ export const DEFAULT_STATE: BandState = {
         role: 'Sub-Bass & Dub Director',
         instrument: '4-String Jazz Bass · Tape Delay',
         origin: 'Denpasar',
+        instagramUrl: 'https://instagram.com/bima.rasmalas',
       },
       {
         id: 'm3',
@@ -48,6 +50,7 @@ export const DEFAULT_STATE: BandState = {
         role: 'Drum One-Drop, Organ & Brass',
         instrument: 'Hammond Organ · Terompet · Saksofon',
         origin: 'Bandung & Lombok',
+        instagramUrl: 'https://instagram.com/surya.rasmalas',
       },
     ],
   },

@@ -137,6 +137,7 @@ async function seedSupabaseFromState(state: BandState): Promise<void> {
         role: m.role,
         instrument: m.instrument,
         origin: m.origin,
+        instagram_url: m.instagramUrl ?? null,
         sort_order: i,
       })),
       { onConflict: 'id' }
@@ -334,6 +335,7 @@ export async function initStore(): Promise<void> {
           role: m.role,
           instrument: m.instrument,
           origin: m.origin,
+          instagramUrl: m.instagram_url ?? undefined,
         })),
       },
       siteSections: hydratedSections,
@@ -470,6 +472,7 @@ export async function dbSaveProfileAndMembers(
         role: m.role,
         instrument: m.instrument,
         origin: m.origin,
+        instagram_url: m.instagramUrl ?? null,
         sort_order: idx,
       })),
       { onConflict: 'id' }

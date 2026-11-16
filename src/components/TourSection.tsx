@@ -68,9 +68,9 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
   return (
     <section
       id={sectionMeta?.slug || 'jadwal'}
-      className="border-b border-[#2A2620] py-16 lg:py-20"
+      className="border-b border-[#2A2620] py-14 sm:py-16 lg:py-20"
     >
-      <div className="mx-auto max-w-[1200px] px-6">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
           <div>
             <p className="text-xs font-medium tracking-wide text-[#EAB308] mb-2">
@@ -136,9 +136,9 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
             filteredTours.map((tour) => (
               <div
                 key={tour.id}
-                className="px-6 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#1B1814] transition-colors"
+                className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#1B1814] transition-colors"
               >
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 flex-1 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 flex-1 items-center">
                   <div className="sm:col-span-3">
                     <p className="font-mono text-sm font-semibold tabular-nums text-[#F5F2EB]">
                       {formatTourDate(tour.date)}
@@ -155,7 +155,7 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
                     </p>
                   </div>
 
-                  <div className="sm:col-span-4 flex flex-wrap items-center gap-3 text-xs">
+                  <div className="sm:col-span-4 flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs">
                     <span className={`font-semibold ${getStatusColor(tour.status)}`}>
                       Status: {tour.status}
                     </span>
@@ -164,12 +164,6 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
                     </span>
                     <span className="font-mono tabular-nums text-[#D6CFC2]">
                       {tour.priceLabel}
-                    </span>
-                    <span aria-hidden="true" className="text-[#575046]">
-                      ·
-                    </span>
-                    <span className="font-mono tabular-nums text-[#A8A092]">
-                      {tour.rsvpCount.toLocaleString('id-ID')} minat
                     </span>
                   </div>
                 </div>
@@ -265,12 +259,12 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
               >
                 <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                 {rsvpSentIds[selectedTour.id]
-                  ? 'Minat Hadir Tercatat'
+                  ? 'Kehadiran Tercatat'
                   : selectedTour.status === 'Selesai'
                     ? 'Pertunjukan Selesai'
                     : selectedTour.status === 'Habis'
                       ? 'Tiket Habis'
-                      : 'Konfirmasi Minat Hadir (RSVP)'}
+                      : 'Konfirmasi Kehadiran (RSVP)'}
               </button>
 
               {selectedTour.ticketUrl && selectedTour.ticketUrl.startsWith('http') && (
