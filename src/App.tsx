@@ -439,11 +439,6 @@ export default function App() {
                   bandName={bandState.profile.name}
                   logoUrl={bandState.profile.logoUrl}
                   sections={bandState.siteSections ?? []}
-                  isAdmin={isAuthenticated}
-                  onOpenAdmin={() => {
-                    setViewMode('admin');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
                 />
 
                 <main>
@@ -524,8 +519,6 @@ export default function App() {
                           posts={bandState.socialPosts}
                           shoutouts={bandState.shoutouts}
                           sectionMeta={sec}
-                          wsConnected={wsConnected}
-                          onlineCount={onlineCount}
                           onLikePost={handleLikePost}
                           onSendShoutout={handleSendShoutout}
                         />
@@ -539,6 +532,11 @@ export default function App() {
                   profile={bandState.profile}
                   links={footerLinks}
                   channels={bandState.socialChannels}
+                  isAdmin={isAuthenticated}
+                  onOpenAdmin={() => {
+                    setViewMode('admin');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                 />
               </>
             );

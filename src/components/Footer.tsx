@@ -1,4 +1,4 @@
-import { ArrowUp, ArrowUpRight, Mail, MapPin } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, Lock, Mail, MapPin } from 'lucide-react';
 import { resolveAssetUrl } from '../shared/assetUrl';
 import type { BandProfile, SiteSection, SocialChannel } from '../shared/types';
 
@@ -6,9 +6,17 @@ interface FooterProps {
   profile: BandProfile;
   links: SiteSection[];
   channels: SocialChannel[];
+  isAdmin: boolean;
+  onOpenAdmin: () => void;
 }
 
-export function Footer({ profile, links, channels }: FooterProps) {
+export function Footer({
+  profile,
+  links,
+  channels,
+  isAdmin,
+  onOpenAdmin,
+}: FooterProps) {
   const activeChannels = channels.filter((c) => c.connected);
   const currentYear = new Date().getFullYear();
 
@@ -160,13 +168,24 @@ export function Footer({ profile, links, channels }: FooterProps) {
             <span />
           )}
 
-          <a
-            href="#top"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] transition-colors"
-          >
-            Kembali ke atas
-            <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
-          </a>
+          <div className="flex flex-wrap items-center gap-5">
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="inline-flex items-center gap-1.5 text-xs text-[#787166] hover:text-[#EAB308] transition-colors cursor-pointer"
+            >
+              <Lock className="w-3 h-3" aria-hidden="true" />
+              <span>{isAdmin ? 'Dashboard Admin' : 'Login Admin'}</span>
+            </button>
+
+            <a
+              href="#top"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] transition-colors"
+            >
+              Kembali ke atas
+              <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+            </a>
+          </div>
         </div>
       </div>
     </footer>

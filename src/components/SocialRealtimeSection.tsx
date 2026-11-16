@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ExternalLink, Heart, MessageSquare, Radio, Send } from 'lucide-react';
+import { ExternalLink, Heart, MessageSquare, Send } from 'lucide-react';
 import { resolveAssetUrl } from '../shared/assetUrl';
 import type {
   FanShoutout,
@@ -14,8 +14,6 @@ interface SocialRealtimeSectionProps {
   posts: SocialPost[];
   shoutouts: FanShoutout[];
   sectionMeta?: SiteSection;
-  wsConnected: boolean;
-  onlineCount: number;
   onLikePost: (postId: string) => Promise<void>;
   onSendShoutout: (senderName: string, city: string, message: string) => Promise<void>;
 }
@@ -36,8 +34,6 @@ export function SocialRealtimeSection({
   posts,
   shoutouts,
   sectionMeta,
-  wsConnected,
-  onlineCount,
   onLikePost,
   onSendShoutout,
 }: SocialRealtimeSectionProps) {
@@ -82,18 +78,6 @@ export function SocialRealtimeSection({
                 {sectionMeta.subtitle}
               </p>
             )}
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-[#D6CFC2] font-mono tabular-nums">
-            <Radio
-              className={`w-4 h-4 shrink-0 ${wsConnected ? 'text-[#4ADE80]' : 'text-[#A8A092]'}`}
-              aria-hidden="true"
-            />
-            <span>
-              {wsConnected
-                ? `Sinkronisasi Real-Time Aktif · ${onlineCount} pengunjung terhubung`
-                : 'Menyambungkan ulang WebSocket...'}
-            </span>
           </div>
         </div>
 

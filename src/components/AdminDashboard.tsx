@@ -1395,10 +1395,6 @@ export function AdminDashboard({
                 <h1 className="font-display text-2xl font-bold text-[#F5F2EB]">
                   Masuk Dashboard Admin
                 </h1>
-                <p className="text-sm text-[#A8A092]">
-                  Kelola profil band, katalog musik streaming, jadwal manggung, galeri foto, dan
-                  integrasi media sosial secara real-time.
-                </p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -1412,7 +1408,6 @@ export function AdminDashboard({
                     required
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="admin@rasmalas.id"
                     className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
                   />
                 </div>
@@ -1430,7 +1425,6 @@ export function AdminDashboard({
                     required
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="••••••••"
                     className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
                   />
                 </div>
@@ -1441,59 +1435,29 @@ export function AdminDashboard({
                   </p>
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="pt-1">
                   <button
                     type="submit"
                     disabled={authBusy}
-                    className="min-h-[44px] px-5 py-2.5 text-sm font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 text-sm font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
                   >
                     {authBusy ? 'Memverifikasi...' : 'Buka Dashboard'}
                   </button>
-
-                  {backendMode === 'express' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmailInput('admin@rasmalas.id');
-                        setPasswordInput('reggae2026');
-                      }}
-                      className="text-xs text-[#D6CFC2] hover:text-[#EAB308] underline underline-offset-4 cursor-pointer"
-                    >
-                      Isi Kredensial Demo
-                    </button>
-                  )}
                 </div>
               </form>
 
-              <div className="border-t border-[#2A3024] pt-4 text-xs text-[#A8A092] space-y-1">
-                {backendMode === 'supabase' ? (
-                  <>
-                    <p>Mode Supabase Direct Aktif:</p>
-                    <p className="text-[#D6CFC2]">
-                      Masuk dengan akun email &amp; kata sandi yang terdaftar di Supabase
-                      Authentication &amp; tabel <span className="font-mono">admin_users</span>.
-                    </p>
-                  </>
-                ) : backendMode === 'static' ? (
-                  <>
-                    <p>Mode Hosting Statis (Vercel / GitHub Pages):</p>
-                    <p className="text-[#D6CFC2]">
-                      Tambahkan Environment Variables{' '}
-                      <span className="font-mono">VITE_SUPABASE_URL</span> &amp;{' '}
-                      <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di Vercel (lalu
-                      Redeploy) atau di GitHub Actions Variables untuk mengaktifkan login &amp;
-                      edit admin.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p>Kredensial Demo:</p>
-                    <p className="font-mono text-[#D6CFC2]">
-                      admin@rasmalas.id · sandi: reggae2026
-                    </p>
-                  </>
-                )}
-              </div>
+              {backendMode === 'static' && (
+                <div className="border-t border-[#2A3024] pt-4 text-xs text-[#A8A092] space-y-1">
+                  <p>Mode Hosting Statis (Vercel / GitHub Pages):</p>
+                  <p className="text-[#D6CFC2]">
+                    Tambahkan Environment Variables{' '}
+                    <span className="font-mono">VITE_SUPABASE_URL</span> &amp;{' '}
+                    <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di Vercel (lalu
+                    Redeploy) atau di GitHub Actions Variables untuk mengaktifkan login &amp;
+                    edit admin.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </main>

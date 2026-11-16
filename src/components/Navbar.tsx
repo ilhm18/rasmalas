@@ -7,17 +7,9 @@ interface NavbarProps {
   bandName: string;
   logoUrl?: string;
   sections: SiteSection[];
-  isAdmin: boolean;
-  onOpenAdmin: () => void;
 }
 
-export function Navbar({
-  bandName,
-  logoUrl,
-  sections,
-  isAdmin,
-  onOpenAdmin,
-}: NavbarProps) {
+export function Navbar({ bandName, logoUrl, sections }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [...sections]
@@ -66,25 +58,15 @@ export function Navbar({
           ))}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            className="min-h-[40px] px-3.5 sm:px-4 py-2 text-xs font-semibold text-[#0C0B09] bg-[#EAB308] rounded-lg transition-colors duration-150 hover:bg-[#FACC15] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5F2EB]"
-          >
-            {isAdmin ? 'Dashboard Admin' : 'Login Admin'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMobileOpen((prev) => !prev)}
-            aria-label={mobileOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
-            aria-expanded={mobileOpen}
-            className="md:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg border border-[#2A2620] text-[#F5F2EB] hover:bg-[#161411] cursor-pointer"
-          >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen((prev) => !prev)}
+          aria-label={mobileOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+          aria-expanded={mobileOpen}
+          className="md:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg border border-[#2A2620] text-[#F5F2EB] hover:bg-[#161411] cursor-pointer"
+        >
+          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </div>
 
       {mobileOpen && (
