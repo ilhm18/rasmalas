@@ -38,7 +38,6 @@ export function SocialRealtimeSection({
   onSendShoutout,
 }: SocialRealtimeSectionProps) {
   const [senderName, setSenderName] = useState('');
-  const [city, setCity] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [formFeedback, setFormFeedback] = useState<string | null>(null);
@@ -49,15 +48,19 @@ export function SocialRealtimeSection({
     setSending(true);
     setFormFeedback(null);
     try {
-      await onSendShoutout(senderName.trim(), city.trim() || 'Nusantara', message.trim());
+      await onSendShoutout(senderName.trim(), '', message.trim());
       setMessage('');
-      setFormFeedback('Pesan berhasil disiarkan secara real-time.');
+      setFormFeedback('Pesan berhasil dikirim.');
     } catch (err) {
       setFormFeedback(err instanceof Error ? err.message : 'Gagal mengirim pesan.');
     } finally {
       setSending(false);
     }
   }
+
+  const resolvedKicker = sectionMeta?.kicker
+    ? sectionMeta.kicker.replace(/\s*real[- ]?time/gi, '').trim()
+    : '05. Integrasi Media Sosial';
 
   return (
     <section
@@ -68,7 +71,7 @@ export function SocialRealtimeSection({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10">
           <div>
             <p className="text-xs font-medium tracking-wide text-[#EAB308] mb-2">
-              {sectionMeta?.kicker || '05. Integrasi Media Sosial Real-Time'}
+              {resolvedKicker || '05. Integrasi Media Sosial'}
             </p>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Kanal Resmi & Siaran Langsung Komunitas'}
@@ -225,7 +228,7 @@ export function SocialRealtimeSection({
             )}
           </div>
 
-          {/* Real-Time Fan Shoutout Wall Panel */}
+          {/* Fan Shoutout Wall Panel */}
           <div className="lg:col-span-5 rounded-2xl border border-[#2A3024] bg-[#11150F]/85 backdrop-blur-sm flex flex-col lg:h-[620px] overflow-hidden">
             <div className="px-5 py-4 border-b border-[#2A2620] flex items-center justify-between gap-3 shrink-0">
               <div>
@@ -243,34 +246,23 @@ export function SocialRealtimeSection({
               onSubmit={handleSubmitShoutout}
               className="p-4 sm:p-5 border-b border-[#2A2620] space-y-3 shrink-0 bg-[#0D100B]/60"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <input
-                  type="text"
-                  required
-                  maxLength={50}
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Nama Anda"
-                  aria-label="Nama pengirim"
-                  className="min-h-[40px] px-3 py-2 text-sm bg-[#090B08] border border-[#2A2620] rounded-lg text-[#F5F2EB] placeholder:text-[#787166] focus:outline-none focus:border-[#EAB308]"
-                />
-                <input
-                  type="text"
-                  maxLength={40}
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Kota (opsional)"
-                  aria-label="Kota asal"
-                  className="min-h-[40px] px-3 py-2 text-sm bg-[#090B08] border border-[#2A2620] rounded-lg text-[#F5F2EB] placeholder:text-[#787166] focus:outline-none focus:border-[#EAB308]"
-                />
-              </div>
+              <input
+                type="text"
+                required
+                maxLength={50}
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                placeholder="Nama Anda"
+                aria-label="Nama pengirim"
+                className="w-full min-h-[40px] px-3 py-2 text-sm bg-[#090B08] border border-[#2A2620] rounded-lg text-[#F5F2EB] placeholder:text-[#787166] focus:outline-none focus:border-[#EAB308]"
+              />
               <textarea
                 required
                 rows={2}
                 maxLength={240}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Tulis sapaan atau request lagu untuk tampil real-time..."
+                placeholder="Tulis sapaan atau request lagu..."
                 aria-label="Pesan untuk band"
                 className="w-full px-3 py-2 text-sm bg-[#090B08] border border-[#2A2620] rounded-lg text-[#F5F2EB] placeholder:text-[#787166] focus:outline-none focus:border-[#EAB308]"
               />
@@ -302,8 +294,7 @@ export function SocialRealtimeSection({
                   >
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="font-semibold text-[#F5F2EB] truncate">
-                        {item.senderName} ·{' '}
-                        <span className="font-normal text-[#A8A092]">{item.city}</span>
+                        {item.senderName}
                       </span>
                       <span className="font-mono tabular-nums text-[#787166] shrink-0">
                         {formatRelativeTime(item.createdAt)}

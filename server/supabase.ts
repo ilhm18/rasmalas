@@ -63,13 +63,15 @@ export interface SupabaseAdminAuthResult {
   ok: boolean;
   accessToken?: string;
   email?: string;
+  username?: string;
+  fullName?: string;
   canEdit?: boolean;
   canDelete?: boolean;
   error?: string;
 }
 
 export async function authenticateSupabaseAdmin(
-  email: string,
+  loginInput: string,
   password: string
 ): Promise<SupabaseAdminAuthResult> {
   const publicClient = getSupabasePublicClient();
@@ -77,8 +79,20 @@ export async function authenticateSupabaseAdmin(
     return { ok: false, error: 'Supabase belum dikonfigurasi.' };
   }
 
+  let resolvedEmail = loginInput.trim();
+  if (!resolvedEmail.includes('@')) {
+    const { data: rpcEmail, error: rpcErr } = await publicClient.rpc(
+      'resolve_admin_login_email',
+      { login_input: resolvedEmail }
+    );
+    if (rpcErr || !rpcEmail) {
+      return { ok: false, error: 'Username atau email admin tidak ditemukan.' };
+    }
+    resolvedEmail = String(rpcEmail).trim();
+  }
+
   const { data: authData, error: authErr } = await publicClient.auth.signInWithPassword({
-    email,
+    email: resolvedEmail,
     password,
   });
 
@@ -97,7 +111,7 @@ export async function authenticateSupabaseAdmin(
 
   const { data: adminRow, error: adminErr } = await authedClient
     .from('admin_users')
-    .select('email, role, can_edit, can_delete')
+    .select('email, username, full_name, role, can_edit, can_delete')
     .ilike('email', authData.user.email)
     .maybeSingle();
 
@@ -120,15 +134,64 @@ export async function authenticateSupabaseAdmin(
     ok: true,
     accessToken,
     email: authData.user.email,
+    username: (adminRow.username as string | null) ?? authData.user.email.split('@')[0],
+    fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
     canEdit: Boolean(adminRow.can_edit),
     canDelete: Boolean(adminRow.can_delete),
+  };
+}
+
+export async function updateSupabaseAdminPasswordServer(
+  sbToken: string,
+  newPassword: string
+): Promise<void> {
+  const url = getEnv('SUPABASE_URL');
+  const anonKey = getEnv('SUPABASE_ANON_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !anonKey) throw new Error('Supabase belum dikonfigurasi.');
+
+  const res = await fetch(`${url.replace(/\/+$/, '')}/auth/v1/user`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: anonKey,
+      Authorization: `Bearer ${sbToken}`,
+    },
+    body: JSON.stringify({ password: newPassword }),
+  });
+  const data = (await res.json()) as { msg?: string; message?: string; error_description?: string };
+  if (!res.ok) {
+    throw new Error(
+      data.error_description || data.msg || data.message || 'Gagal memperbarui kata sandi di Supabase.'
+    );
+  }
+}
+
+export async function updateSupabaseAdminUsernameServer(
+  sbToken: string,
+  username: string,
+  fullName: string
+): Promise<{ email: string; username: string; fullName: string }> {
+  const client = getSupabaseAdminClient(sbToken);
+  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+
+  const { data, error } = await client.rpc('update_own_admin_profile', {
+    p_username: username,
+    p_full_name: fullName,
+    p_email: null,
+  });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    email: String(row?.email || ''),
+    username: String(row?.username || username),
+    fullName: String(row?.full_name || fullName),
   };
 }
 
 export const SUPABASE_MEDIA_BUCKET = 'rasmalas-media';
 
 export async function uploadMediaToSupabaseStorage(
-  buffer: Buffer,
+  fileBody: Buffer | Blob,
   storagePath: string,
   mimeType: string,
   sbToken?: string
@@ -138,7 +201,7 @@ export async function uploadMediaToSupabaseStorage(
 
   let { error } = await client.storage
     .from(SUPABASE_MEDIA_BUCKET)
-    .upload(storagePath, buffer, {
+    .upload(storagePath, fileBody, {
       contentType: mimeType,
       upsert: true,
     });
@@ -146,11 +209,12 @@ export async function uploadMediaToSupabaseStorage(
   if (error && error.message.toLowerCase().includes('not found') && hasServiceRoleKey()) {
     await client.storage.createBucket(SUPABASE_MEDIA_BUCKET, {
       public: true,
-      fileSizeLimit: 52428800,
+      fileSizeLimit: null,
+      allowedMimeTypes: null,
     });
     const retry = await client.storage
       .from(SUPABASE_MEDIA_BUCKET)
-      .upload(storagePath, buffer, {
+      .upload(storagePath, fileBody, {
         contentType: mimeType,
         upsert: true,
       });

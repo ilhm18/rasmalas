@@ -7,12 +7,16 @@
 CREATE TABLE IF NOT EXISTS public.admin_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
+  username TEXT UNIQUE,
   full_name TEXT NOT NULL DEFAULT 'Admin Rasmalas',
   role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'editor')),
   can_edit BOOLEAN NOT NULL DEFAULT true,
   can_delete BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.admin_users
+  ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
 
 -- 2. Profil Band (single row id = 'rasmalas')
 CREATE TABLE IF NOT EXISTS public.band_profile (
@@ -262,6 +266,65 @@ AS $$
   );
 $$;
 
+-- Izinkan login memakai username atau email di halaman Login Admin
+CREATE OR REPLACE FUNCTION public.resolve_admin_login_email(login_input TEXT)
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT email
+  FROM public.admin_users
+  WHERE lower(username) = lower(trim(login_input))
+     OR lower(email) = lower(trim(login_input))
+  LIMIT 1;
+$$;
+
+-- Admin aktif dapat mengganti username, nama tampilan, dan catatan email di admin_users
+CREATE OR REPLACE FUNCTION public.update_own_admin_profile(
+  p_username TEXT,
+  p_full_name TEXT,
+  p_email TEXT DEFAULT NULL
+)
+RETURNS TABLE(email TEXT, username TEXT, full_name TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_current_email TEXT := public.current_user_email();
+  v_clean_username TEXT := NULLIF(lower(trim(COALESCE(p_username, ''))), '');
+  v_clean_name TEXT := NULLIF(trim(COALESCE(p_full_name, '')), '');
+  v_next_email TEXT := COALESCE(NULLIF(lower(trim(COALESCE(p_email, ''))), ''), v_current_email);
+BEGIN
+  IF v_current_email = '' OR NOT public.is_rasmalas_admin() THEN
+    RAISE EXCEPTION 'Akses ditolak. Anda harus masuk sebagai admin.';
+  END IF;
+
+  IF v_clean_username IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.admin_users a
+    WHERE lower(a.username) = v_clean_username
+      AND lower(a.email) <> v_current_email
+  ) THEN
+    RAISE EXCEPTION 'Username "%" sudah dipakai admin lain.', v_clean_username;
+  END IF;
+
+  UPDATE public.admin_users a
+  SET
+    username = COALESCE(v_clean_username, a.username),
+    full_name = COALESCE(v_clean_name, a.full_name),
+    email = v_next_email
+  WHERE lower(a.email) = v_current_email;
+
+  RETURN QUERY
+  SELECT a.email, a.username, a.full_name
+  FROM public.admin_users a
+  WHERE lower(a.email) = v_next_email
+  LIMIT 1;
+END;
+$$;
+
 -- Fungsi RPC aman untuk interaksi publik (tanpa membuka UPDATE langsung ke publik)
 CREATE OR REPLACE FUNCTION public.increment_track_play(track_id TEXT)
 RETURNS VOID
@@ -328,10 +391,15 @@ GRANT EXECUTE ON FUNCTION
   public.is_rasmalas_admin(),
   public.can_admin_edit(),
   public.can_admin_delete(),
+  public.resolve_admin_login_email(TEXT),
   public.increment_track_play(TEXT),
   public.increment_tour_rsvp(TEXT),
   public.increment_post_like(TEXT)
 TO anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION
+  public.update_own_admin_profile(TEXT, TEXT, TEXT)
+TO authenticated;
 
 -- ============================================================================
 -- AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN TAMBAH / EDIT / HAPUS ADMIN
@@ -456,15 +524,16 @@ CREATE POLICY "Admin hapus sapaan" ON public.fan_shoutouts FOR DELETE TO authent
 -- DATA AWAL ADMIN (TERMASUK SINKRONISASI OTOMATIS USER AUTH YANG SUDAH ADA)
 -- ============================================================================
 
-INSERT INTO public.admin_users (email, full_name, role, can_edit, can_delete)
+INSERT INTO public.admin_users (email, username, full_name, role, can_edit, can_delete)
 VALUES
-  ('hamzhome18@gmail.com', 'Owner Rasmalas', 'admin', true, true),
-  ('admin@rasmalas.id', 'Studio Admin Rasmalas', 'admin', true, true)
+  ('hamzhome18@gmail.com', 'hamzhome', 'Owner Rasmalas', 'admin', true, true),
+  ('admin@rasmalas.id', 'admin', 'Studio Admin Rasmalas', 'admin', true, true)
 ON CONFLICT (email) DO UPDATE
 SET
   role = 'admin',
   can_edit = true,
-  can_delete = true;
+  can_delete = true,
+  username = COALESCE(public.admin_users.username, EXCLUDED.username);
 
 -- Sinkronkan akun yang sudah dibuat di Authentication -> Users agar otomatis punya akses Edit & Delete
 INSERT INTO public.admin_users (email, full_name, role, can_edit, can_delete)
@@ -481,6 +550,11 @@ SET
   role = 'admin',
   can_edit = true,
   can_delete = true;
+
+-- Isi username bawaan untuk admin yang belum memiliki username
+UPDATE public.admin_users
+SET username = split_part(lower(email), '@', 1) || '_' || substr(id::text, 1, 4)
+WHERE username IS NULL;
 
 -- ============================================================================
 -- SEED AWAL KONTEN BAND RASMALAS
@@ -572,10 +646,10 @@ INSERT INTO public.site_sections (
 )
 VALUES
   ('sec-profil', 'profil', 'Profil', '01. Profil Kolektif & Filosofi Suara', 'Rekaman Pita Analog, Akar Reggae Pesisir.', 'Instrumen live tanpa backing track digital', 'profil', true, true, 0),
-  ('sec-musik', 'musik', 'Musik', '02. Pemutar Musik Streaming', 'Katalog Rilisan & Studio Dub Stream', 'Putar langsung rekaman reggae one-drop dan sesi dub analog dengan kontrol pemutar penuh.', 'musik', true, true, 1),
-  ('sec-jadwal', 'jadwal', 'Jadwal', '03. Jadwal Panggung & Acara', 'Jadwal Penampilan Rasmalas', 'Cek kota terdekat, ketersediaan tiket, dan konfirmasi kehadiran Anda.', 'jadwal', true, true, 2),
+  ('sec-musik', 'musik', 'Musik', '02. Pemutar Musik Streaming', 'Katalog Rilisan & Studio Dub Stream', NULL, 'musik', true, true, 1),
+  ('sec-jadwal', 'jadwal', 'Jadwal', '03. Jadwal Panggung & Acara', 'Jadwal Penampilan Rasmalas', 'Cek kota terdekat dan ketersediaan tiket.', 'jadwal', true, true, 2),
   ('sec-galeri', 'galeri', 'Galeri', '04. Galeri Foto & Video Dokumentasi', 'Arsip Panggung, Studio & Backstage', NULL, 'galeri', true, true, 3),
-  ('sec-sosial', 'sosial', 'Sosial', '05. Integrasi Media Sosial Real-Time', 'Kanal Resmi & Siaran Langsung Komunitas', NULL, 'sosial', true, true, 4)
+  ('sec-sosial', 'sosial', 'Sosial', '05. Integrasi Media Sosial', 'Kanal Resmi & Siaran Langsung Komunitas', NULL, 'sosial', true, true, 4)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -619,29 +693,14 @@ VALUES (
   'rasmalas-media',
   'rasmalas-media',
   true,
-  52428800,
-  ARRAY[
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-    'image/svg+xml',
-    'video/mp4',
-    'video/webm',
-    'video/quicktime',
-    'audio/mpeg',
-    'audio/wav',
-    'audio/ogg',
-    'audio/mp4',
-    'audio/x-m4a',
-    'audio/aac'
-  ]
+  NULL,
+  NULL
 )
 ON CONFLICT (id) DO UPDATE
 SET
   public = true,
-  file_size_limit = 52428800,
-  allowed_mime_types = EXCLUDED.allowed_mime_types;
+  file_size_limit = NULL,
+  allowed_mime_types = NULL;
 
 DROP POLICY IF EXISTS "Publik baca file media rasmalas" ON storage.objects;
 CREATE POLICY "Publik baca file media rasmalas"

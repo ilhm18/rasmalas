@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Calendar, CheckCircle2, Clock, MapPin, Search, Ticket, X } from 'lucide-react';
+import { Calendar, Clock, MapPin, Search, Ticket, X } from 'lucide-react';
 import type { SiteSection, TourDate, TourStatus } from '../shared/types';
 
 interface TourSectionProps {
   tours: TourDate[];
   sectionMeta?: SiteSection;
-  onRsvpTour: (tourId: string) => Promise<void>;
 }
 
 type TourFilter = 'all' | 'upcoming' | 'past';
@@ -33,12 +32,10 @@ function getStatusColor(status: TourStatus): string {
   }
 }
 
-export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps) {
+export function TourSection({ tours, sectionMeta }: TourSectionProps) {
   const [filter, setFilter] = useState<TourFilter>('all');
   const [query, setQuery] = useState('');
   const [selectedTour, setSelectedTour] = useState<TourDate | null>(null);
-  const [rsvpSentIds, setRsvpSentIds] = useState<Record<string, boolean>>({});
-  const [rsvpBusy, setRsvpBusy] = useState(false);
 
   const filteredTours = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -53,17 +50,6 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
       );
     });
   }, [tours, filter, query]);
-
-  async function handleConfirmRsvp(tour: TourDate) {
-    if (rsvpSentIds[tour.id] || rsvpBusy) return;
-    setRsvpBusy(true);
-    try {
-      await onRsvpTour(tour.id);
-      setRsvpSentIds((prev) => ({ ...prev, [tour.id]: true }));
-    } finally {
-      setRsvpBusy(false);
-    }
-  }
 
   return (
     <section
@@ -245,29 +231,8 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
               <p className="text-sm text-[#A8A092] leading-relaxed">{selectedTour.notes}</p>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                disabled={
-                  selectedTour.status === 'Selesai' ||
-                  selectedTour.status === 'Habis' ||
-                  Boolean(rsvpSentIds[selectedTour.id]) ||
-                  rsvpBusy
-                }
-                onClick={() => handleConfirmRsvp(selectedTour)}
-                className="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 text-sm font-semibold rounded-lg bg-[#EAB308] text-[#0C0B09] hover:bg-[#FACC15] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                {rsvpSentIds[selectedTour.id]
-                  ? 'Kehadiran Tercatat'
-                  : selectedTour.status === 'Selesai'
-                    ? 'Pertunjukan Selesai'
-                    : selectedTour.status === 'Habis'
-                      ? 'Tiket Habis'
-                      : 'Konfirmasi Kehadiran (RSVP)'}
-              </button>
-
-              {selectedTour.ticketUrl && selectedTour.ticketUrl.startsWith('http') && (
+            {selectedTour.ticketUrl && selectedTour.ticketUrl.startsWith('http') && (
+              <div className="pt-2">
                 <a
                   href={selectedTour.ticketUrl}
                   target="_blank"
@@ -276,8 +241,8 @@ export function TourSection({ tours, sectionMeta, onRsvpTour }: TourSectionProps
                 >
                   Buka Loket Resmi
                 </a>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

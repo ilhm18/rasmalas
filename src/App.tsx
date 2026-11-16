@@ -15,7 +15,6 @@ import {
   sbAdminLogout,
   sbAdminSessionCheck,
   sbIncrementPostLike,
-  sbIncrementTourRsvp,
   sbIncrementTrackPlay,
   sbInsertShoutout,
 } from './lib/supabaseBrowser';
@@ -38,13 +37,24 @@ export default function App() {
   } = useBandRealtime();
 
   // View mode: public site or full Admin Dashboard
-  const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
+  const [viewMode, setViewMode] = useState<'public' | 'admin'>(() =>
+    typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
+      ? 'admin'
+      : 'public'
+  );
+  const [initialAdminSection, setInitialAdminSection] = useState<'overview' | 'settings'>(() =>
+    typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
+      ? 'settings'
+      : 'overview'
+  );
 
   // Admin auth state
   const [authToken, setAuthToken] = useState<string | null>(() =>
     typeof window !== 'undefined' ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null
   );
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [adminUsername, setAdminUsername] = useState<string | null>(null);
+  const [adminFullName, setAdminFullName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Streaming music player state
@@ -69,10 +79,19 @@ export default function App() {
           if (sbSession.authenticated && sbSession.email && sbSession.token) {
             setIsAuthenticated(true);
             setAdminEmail(sbSession.email);
+            setAdminUsername(sbSession.username);
+            setAdminFullName(sbSession.fullName);
             setAuthToken(sbSession.token);
+            if (window.location.hash.includes('type=recovery')) {
+              setViewMode('admin');
+              setInitialAdminSection('settings');
+              window.history.replaceState(null, '', window.location.pathname);
+            }
           } else {
             setIsAuthenticated(false);
             setAdminEmail(null);
+            setAdminUsername(null);
+            setAdminFullName(null);
             window.localStorage.removeItem(TOKEN_STORAGE_KEY);
             setAuthToken(null);
           }
@@ -81,6 +100,8 @@ export default function App() {
         if (backendMode === 'static') {
           setIsAuthenticated(false);
           setAdminEmail(null);
+          setAdminUsername(null);
+          setAdminFullName(null);
           return;
         }
 
@@ -92,13 +113,19 @@ export default function App() {
         const data = (await res.json()) as {
           authenticated: boolean;
           email: string | null;
+          username?: string | null;
+          fullName?: string | null;
         };
         if (data.authenticated && data.email) {
           setIsAuthenticated(true);
           setAdminEmail(data.email);
+          setAdminUsername(data.username ?? data.email.split('@')[0]);
+          setAdminFullName(data.fullName ?? 'Admin Rasmalas');
         } else {
           setIsAuthenticated(false);
           setAdminEmail(null);
+          setAdminUsername(null);
+          setAdminFullName(null);
           window.localStorage.removeItem(TOKEN_STORAGE_KEY);
           setAuthToken(null);
         }
@@ -274,26 +301,6 @@ export default function App() {
     };
   }, [repeatOne, handleNext]);
 
-  async function handleRsvpTour(tourId: string) {
-    if (backendMode === 'express') {
-      await fetch(`/api/tours/${encodeURIComponent(tourId)}/rsvp`, { method: 'POST' });
-      return;
-    }
-    setBandState((prev) =>
-      prev
-        ? {
-            ...prev,
-            tours: prev.tours.map((t) =>
-              t.id === tourId ? { ...t, rsvpCount: t.rsvpCount + 1 } : t
-            ),
-          }
-        : prev
-    );
-    if (backendMode === 'supabase') {
-      await sbIncrementTourRsvp(tourId);
-    }
-  }
-
   async function handleLikePost(postId: string) {
     if (backendMode === 'express') {
       await fetch(`/api/social/posts/${encodeURIComponent(postId)}/like`, {
@@ -342,7 +349,7 @@ export default function App() {
               {
                 id: `sh-${Date.now().toString(36)}`,
                 senderName: senderName.trim(),
-                city: city.trim() || 'Nusantara',
+                city: city.trim(),
                 message: message.trim(),
                 createdAt: new Date().toISOString(),
               },
@@ -353,17 +360,41 @@ export default function App() {
     );
   }
 
-  function handleLoginSuccess(email: string, token: string) {
+  function handleLoginSuccess(
+    email: string,
+    token: string,
+    username?: string,
+    fullName?: string
+  ) {
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
     setAuthToken(token);
     setAdminEmail(email);
+    setAdminUsername(username ?? email.split('@')[0]);
+    setAdminFullName(fullName ?? 'Admin Rasmalas');
     setIsAuthenticated(true);
+  }
+
+  function handleAccountUpdated(info: {
+    email?: string;
+    username?: string;
+    fullName?: string;
+    token?: string;
+  }) {
+    if (info.token) {
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, info.token);
+      setAuthToken(info.token);
+    }
+    if (info.email) setAdminEmail(info.email);
+    if (info.username) setAdminUsername(info.username);
+    if (info.fullName) setAdminFullName(info.fullName);
   }
 
   async function handleLogout() {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     setAuthToken(null);
     setAdminEmail(null);
+    setAdminUsername(null);
+    setAdminFullName(null);
     setIsAuthenticated(false);
     if (backendMode === 'express') {
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -412,14 +443,19 @@ export default function App() {
           backendMode={backendMode}
           isAuthenticated={isAuthenticated}
           adminEmail={adminEmail}
+          adminUsername={adminUsername}
+          adminFullName={adminFullName}
+          initialSection={initialAdminSection}
           authToken={authToken}
           wsConnected={wsConnected}
           onlineCount={onlineCount}
           onBackToSite={() => {
             setViewMode('public');
+            setInitialAdminSection('overview');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onLoginSuccess={handleLoginSuccess}
+          onAccountUpdated={handleAccountUpdated}
           onLogout={() => void handleLogout()}
           onRefreshState={refetch}
         />
@@ -498,7 +534,6 @@ export default function App() {
                           key={sec.id}
                           tours={bandState.tours}
                           sectionMeta={sec}
-                          onRsvpTour={handleRsvpTour}
                         />
                       );
                     }

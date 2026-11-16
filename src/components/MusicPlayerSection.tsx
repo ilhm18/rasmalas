@@ -84,10 +84,6 @@ export function MusicPlayerSection({
               {sectionMeta?.title || 'Katalog Rilisan & Studio Dub Stream'}
             </h2>
           </div>
-          <p className="text-sm text-[#A8A092] max-w-[42ch]">
-            {sectionMeta?.subtitle ||
-              'Putar langsung rekaman reggae one-drop dan sesi dub analog dengan kontrol pemutar penuh.'}
-          </p>
         </div>
 
         {active ? (

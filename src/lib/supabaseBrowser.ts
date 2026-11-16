@@ -235,7 +235,7 @@ export async function sbInsertShoutout(
   const { error } = await client.from('fan_shoutouts').insert({
     id: `sh-${Date.now().toString(36)}`,
     sender_name: senderName.trim(),
-    city: city.trim() || 'Nusantara',
+    city: city.trim(),
     message: message.trim(),
     created_at: new Date().toISOString(),
   });
@@ -260,9 +260,9 @@ function isLikelySecretApiKey(key: string): boolean {
 
 // Admin Auth
 export async function sbAdminLogin(
-  email: string,
+  loginInput: string,
   password: string
-): Promise<{ email: string; token: string }> {
+): Promise<{ email: string; username: string; fullName: string; token: string }> {
   if (isLikelySecretApiKey(SUPABASE_ANON_KEY)) {
     throw new Error(
       'VITE_SUPABASE_ANON_KEY masih terisi Secret/service_role key. Ganti dengan Publishable key (sb_publishable_...) atau anon public key di Environment Variables, lalu Redeploy tanpa Build Cache.'
@@ -272,8 +272,20 @@ export async function sbAdminLogin(
   if (!client) {
     throw new Error('Supabase belum dikonfigurasi untuk mode statis.');
   }
+
+  let resolvedEmail = loginInput.trim();
+  if (!resolvedEmail.includes('@')) {
+    const { data: rpcEmail, error: rpcErr } = await client.rpc('resolve_admin_login_email', {
+      login_input: resolvedEmail,
+    });
+    if (rpcErr || !rpcEmail) {
+      throw new Error('Username atau email admin tidak ditemukan.');
+    }
+    resolvedEmail = String(rpcEmail).trim();
+  }
+
   const { data, error } = await client.auth.signInWithPassword({
-    email: email.trim(),
+    email: resolvedEmail,
     password,
   });
   if (error || !data.session || !data.user?.email) {
@@ -283,12 +295,12 @@ export async function sbAdminLogin(
         'VITE_SUPABASE_ANON_KEY masih terisi Secret/service_role key. Ganti dengan Publishable key (sb_publishable_...) atau anon public key, lalu Redeploy tanpa Build Cache.'
       );
     }
-    throw new Error(rawMsg || 'Email atau kata sandi admin Supabase tidak sesuai.');
+    throw new Error(rawMsg || 'Email/username atau kata sandi admin Supabase tidak sesuai.');
   }
 
   const { data: adminRow, error: adminErr } = await client
     .from('admin_users')
-    .select('email, can_edit')
+    .select('email, username, full_name, can_edit')
     .ilike('email', data.user.email)
     .maybeSingle();
 
@@ -299,6 +311,8 @@ export async function sbAdminLogin(
 
   return {
     email: data.user.email,
+    username: (adminRow.username as string | null) ?? data.user.email.split('@')[0],
+    fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
     token: data.session.access_token,
   };
 }
@@ -306,29 +320,33 @@ export async function sbAdminLogin(
 export async function sbAdminSessionCheck(): Promise<{
   authenticated: boolean;
   email: string | null;
+  username: string | null;
+  fullName: string | null;
   token: string | null;
 }> {
   const client = getBrowserSupabaseClient();
   if (!client) {
-    return { authenticated: false, email: null, token: null };
+    return { authenticated: false, email: null, username: null, fullName: null, token: null };
   }
   const { data } = await client.auth.getSession();
   const session = data.session;
   if (!session?.user?.email) {
-    return { authenticated: false, email: null, token: null };
+    return { authenticated: false, email: null, username: null, fullName: null, token: null };
   }
   const { data: adminRow } = await client
     .from('admin_users')
-    .select('email')
+    .select('email, username, full_name')
     .ilike('email', session.user.email)
     .maybeSingle();
 
   if (!adminRow) {
-    return { authenticated: false, email: null, token: null };
+    return { authenticated: false, email: null, username: null, fullName: null, token: null };
   }
   return {
     authenticated: true,
     email: session.user.email,
+    username: (adminRow.username as string | null) ?? session.user.email.split('@')[0],
+    fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
     token: session.access_token,
   };
 }
@@ -337,6 +355,112 @@ export async function sbAdminLogout(): Promise<void> {
   const client = getBrowserSupabaseClient();
   if (!client) return;
   await client.auth.signOut();
+}
+
+export async function sbGetOwnAdminProfile(): Promise<{
+  email: string;
+  username: string;
+  fullName: string;
+}> {
+  const session = await sbAdminSessionCheck();
+  if (!session.authenticated || !session.email) {
+    throw new Error('Sesi admin tidak aktif.');
+  }
+  return {
+    email: session.email,
+    username: session.username || session.email.split('@')[0],
+    fullName: session.fullName || 'Admin Rasmalas',
+  };
+}
+
+export async function sbUpdateOwnAdminProfile(payload: {
+  username: string;
+  fullName: string;
+  email?: string;
+}): Promise<{
+  email: string;
+  username: string;
+  fullName: string;
+  emailConfirmationSent?: boolean;
+}> {
+  const client = getBrowserSupabaseClient();
+  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+
+  const { data: sessionData } = await client.auth.getSession();
+  const currentEmail = sessionData.session?.user?.email || '';
+  if (!currentEmail) throw new Error('Sesi admin tidak aktif.');
+
+  const cleanUsername = payload.username
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '');
+  const cleanFullName = payload.fullName.trim();
+  if (!cleanUsername) {
+    throw new Error('Username hanya boleh berisi huruf, angka, titik, garis bawah, atau tanda hubung.');
+  }
+
+  const { data, error } = await client.rpc('update_own_admin_profile', {
+    p_username: cleanUsername,
+    p_full_name: cleanFullName || 'Admin Rasmalas',
+    p_email: null,
+  });
+
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+
+  let emailConfirmationSent = false;
+  const requestedEmail = payload.email?.trim().toLowerCase();
+  if (requestedEmail && requestedEmail !== currentEmail.toLowerCase()) {
+    const { error: emailErr } = await client.auth.updateUser({
+      email: requestedEmail,
+    });
+    if (emailErr) throw new Error(emailErr.message);
+    emailConfirmationSent = true;
+  }
+
+  return {
+    email: (row?.email as string | undefined) || currentEmail,
+    username: (row?.username as string | undefined) || cleanUsername,
+    fullName: (row?.full_name as string | undefined) || cleanFullName,
+    emailConfirmationSent,
+  };
+}
+
+export async function sbUpdateAdminPassword(newPassword: string): Promise<void> {
+  const client = getBrowserSupabaseClient();
+  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+  if (newPassword.length < 6) {
+    throw new Error('Kata sandi baru minimal 6 karakter.');
+  }
+  const { error } = await client.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+}
+
+export async function sbSendPasswordResetEmail(
+  loginOrEmail: string
+): Promise<{ email: string }> {
+  const client = getBrowserSupabaseClient();
+  if (!client) throw new Error('Supabase belum dikonfigurasi.');
+
+  let targetEmail = loginOrEmail.trim();
+  if (!targetEmail) {
+    throw new Error('Masukkan email atau username admin terlebih dahulu.');
+  }
+  if (!targetEmail.includes('@')) {
+    const { data: rpcEmail, error: rpcErr } = await client.rpc('resolve_admin_login_email', {
+      login_input: targetEmail,
+    });
+    if (rpcErr || !rpcEmail) {
+      throw new Error('Username admin tidak ditemukan di Supabase.');
+    }
+    targetEmail = String(rpcEmail).trim();
+  }
+
+  const { error } = await client.auth.resetPasswordForEmail(targetEmail, {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw new Error(error.message);
+  return { email: targetEmail };
 }
 
 // Media Upload directly to Supabase Storage

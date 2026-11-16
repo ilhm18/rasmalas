@@ -7,16 +7,17 @@ import {
   Camera,
   Check,
   Disc3,
-  Download,
   Edit3,
   Eye,
   EyeOff,
   Film,
+  KeyRound,
   Layers,
   LayoutDashboard,
   Link2,
   Lock,
   LogOut,
+  Mail,
   Menu,
   PanelBottom,
   Plus,
@@ -44,6 +45,8 @@ import {
   sbReorderSiteSections,
   sbSaveProfileAndMembers,
   sbSaveSocialChannels,
+  sbSendPasswordResetEmail,
+  sbUpdateAdminPassword,
   sbUploadMedia,
   sbUpsertGalleryPhoto,
   sbUpsertSiteSection,
@@ -73,11 +76,25 @@ interface AdminDashboardProps {
   backendMode: BackendMode;
   isAuthenticated: boolean;
   adminEmail: string | null;
+  adminUsername: string | null;
+  adminFullName: string | null;
+  initialSection?: 'overview' | 'settings';
   authToken: string | null;
   wsConnected: boolean;
   onlineCount: number;
   onBackToSite: () => void;
-  onLoginSuccess: (email: string, token: string) => void;
+  onLoginSuccess: (
+    email: string,
+    token: string,
+    username?: string,
+    fullName?: string
+  ) => void;
+  onAccountUpdated?: (info: {
+    email?: string;
+    username?: string;
+    fullName?: string;
+    token?: string;
+  }) => void;
   onLogout: () => void;
   onRefreshState: () => Promise<void>;
 }
@@ -102,7 +119,7 @@ const SECTION_LABELS: Record<AdminSection, string> = {
   tours: 'Jadwal',
   gallery: 'Galeri Foto & Video',
   social: 'Media Sosial',
-  settings: 'Pengaturan & Cadangan',
+  settings: 'Pengaturan & Akun',
 };
 
 export function AdminDashboard({
@@ -110,6 +127,9 @@ export function AdminDashboard({
   backendMode,
   isAuthenticated,
   adminEmail,
+  adminUsername,
+  adminFullName,
+  initialSection = 'overview',
   authToken,
   wsConnected,
   onlineCount,
@@ -118,14 +138,31 @@ export function AdminDashboard({
   onLogout,
   onRefreshState,
 }: AdminDashboardProps) {
-  const [section, setSection] = useState<AdminSection>('overview');
+  const [section, setSection] = useState<AdminSection>(initialSection);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Login form state
+  // Login & reset password form state
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetLoginInput, setResetLoginInput] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  // Admin password reset state
+  const [passwordForm, setPasswordForm] = useState({
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [resetEmailBusy, setResetEmailBusy] = useState(false);
 
   // Global feedback
   const [notice, setNotice] = useState<string | null>(null);
@@ -239,6 +276,12 @@ export function AdminDashboard({
     setChannelsForm(bandState.socialChannels);
   }, [bandState]);
 
+  useEffect(() => {
+    if (initialSection === 'settings') {
+      setSection('settings');
+    }
+  }, [initialSection]);
+
   function buildHeaders(): HeadersInit {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -254,10 +297,6 @@ export function AdminDashboard({
     folder: string,
     target: 'logo' | 'hero' | 'studio' | 'section' | 'cover' | 'audio' | 'gallery' | 'social'
   ): Promise<{ url: string; mediaType: 'image' | 'video' | 'audio' } | null> {
-    if (file.size > 50 * 1024 * 1024) {
-      showError('Ukuran file maksimal 50 MB.');
-      return null;
-    }
     setUploadingTarget(target);
     try {
       if (backendMode === 'supabase') {
@@ -316,7 +355,7 @@ export function AdminDashboard({
     try {
       if (backendMode === 'supabase') {
         const result = await sbAdminLogin(emailInput, passwordInput);
-        onLoginSuccess(result.email, result.token);
+        onLoginSuccess(result.email, result.token, result.username, result.fullName);
         setPasswordInput('');
         return;
       }
@@ -333,18 +372,102 @@ export function AdminDashboard({
       const data = (await res.json()) as {
         authenticated?: boolean;
         email?: string;
+        username?: string;
+        fullName?: string;
         token?: string;
         error?: string;
       };
       if (!res.ok || !data.authenticated || !data.token || !data.email) {
-        throw new Error(data.error || 'Email atau kata sandi admin tidak sesuai.');
+        throw new Error(data.error || 'Email/username atau kata sandi admin tidak sesuai.');
       }
-      onLoginSuccess(data.email, data.token);
+      onLoginSuccess(data.email, data.token, data.username, data.fullName);
       setPasswordInput('');
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Gagal masuk ke dashboard admin.');
     } finally {
       setAuthBusy(false);
+    }
+  }
+
+  async function handleSendLoginResetEmail(e: FormEvent) {
+    e.preventDefault();
+    setResetFeedback(null);
+    setResetBusy(true);
+    try {
+      if (backendMode !== 'supabase') {
+        throw new Error(
+          'Reset kata sandi via email tersedia saat terhubung ke Supabase. Pada mode server lokal, login lalu ubah kata sandi di menu Pengaturan.'
+        );
+      }
+      const res = await sbSendPasswordResetEmail(resetLoginInput);
+      setResetFeedback({
+        type: 'success',
+        message: `Tautan reset kata sandi telah dikirim ke ${res.email}. Silakan cek kotak masuk atau folder spam email Anda.`,
+      });
+      setResetLoginInput('');
+    } catch (err) {
+      setResetFeedback({
+        type: 'error',
+        message:
+          err instanceof Error ? err.message : 'Gagal mengirim tautan reset kata sandi.',
+      });
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
+  async function handleSaveNewPassword(e: FormEvent) {
+    e.preventDefault();
+    if (passwordForm.newPassword.length < 6) {
+      showError('Kata sandi baru minimal 6 karakter.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      showError('Konfirmasi kata sandi baru tidak cocok.');
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      if (backendMode === 'supabase') {
+        await sbUpdateAdminPassword(passwordForm.newPassword);
+      } else if (backendMode === 'static') {
+        throw new Error('Mode statis membutuhkan koneksi Supabase untuk reset kata sandi.');
+      } else {
+        const res = await fetch('/api/admin/account/password', {
+          method: 'PUT',
+          headers: buildHeaders(),
+          body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok) {
+          throw new Error(data.error || 'Gagal memperbarui kata sandi admin.');
+        }
+      }
+
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+      showNotice('Kata sandi admin berhasil direset dan langsung aktif untuk login berikutnya.');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Gagal memperbarui kata sandi admin.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
+  async function handleSendResetEmailFromSettings() {
+    const target = adminEmail || adminUsername;
+    if (!target) {
+      showError('Email akun admin belum tersedia.');
+      return;
+    }
+    setResetEmailBusy(true);
+    try {
+      const res = await sbSendPasswordResetEmail(target);
+      showNotice(`Link reset kata sandi telah dikirim ke ${res.email}.`);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Gagal mengirim email reset kata sandi.');
+    } finally {
+      setResetEmailBusy(false);
     }
   }
 
@@ -1303,34 +1426,6 @@ export function AdminDashboard({
     }
   }
 
-  async function handleDownloadBackup() {
-    try {
-      let blob: Blob;
-      if (backendMode === 'express') {
-        const headers: Record<string, string> = {};
-        if (authToken) headers.Authorization = `Bearer ${authToken}`;
-        const res = await fetch('/api/admin/export', { headers });
-        if (!res.ok) throw new Error('Gagal mengunduh cadangan.');
-        blob = await res.blob();
-      } else {
-        blob = new Blob([JSON.stringify(bandState, null, 2)], {
-          type: 'application/json',
-        });
-      }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'rasmalas-backup.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      showNotice('File cadangan JSON berhasil diunduh.');
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Gagal mengekspor data.');
-    }
-  }
-
   const totalPlays = bandState.tracks.reduce((acc, t) => acc + t.plays, 0);
   const upcomingTours = bandState.tours.filter((t) => t.status !== 'Selesai');
   const totalLikes = bandState.socialPosts.reduce((acc, p) => acc + p.likes, 0);
@@ -1397,54 +1492,123 @@ export function AdminDashboard({
                 </h1>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="dash-email" className="block text-xs font-medium text-[#D6CFC2]">
-                    Email Admin
-                  </label>
-                  <input
-                    id="dash-email"
-                    type="email"
-                    required
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
-                  />
-                </div>
+              {!showResetForm ? (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="dash-email" className="block text-xs font-medium text-[#D6CFC2]">
+                      Email atau Username Admin
+                    </label>
+                    <input
+                      id="dash-email"
+                      type="text"
+                      required
+                      autoComplete="username"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                    />
+                  </div>
 
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="dash-password"
-                    className="block text-xs font-medium text-[#D6CFC2]"
-                  >
-                    Kata Sandi
-                  </label>
-                  <input
-                    id="dash-password"
-                    type="password"
-                    required
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
-                  />
-                </div>
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="dash-password"
+                      className="block text-xs font-medium text-[#D6CFC2]"
+                    >
+                      Kata Sandi
+                    </label>
+                    <input
+                      id="dash-password"
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                    />
+                  </div>
 
-                {authError && (
-                  <p role="alert" className="text-xs text-[#FCA5A5]">
-                    {authError}
-                  </p>
-                )}
+                  {authError && (
+                    <p role="alert" className="text-xs text-[#FCA5A5]">
+                      {authError}
+                    </p>
+                  )}
 
-                <div className="pt-1">
-                  <button
-                    type="submit"
-                    disabled={authBusy}
-                    className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 text-sm font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
-                  >
-                    {authBusy ? 'Memverifikasi...' : 'Buka Dashboard'}
-                  </button>
-                </div>
-              </form>
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="submit"
+                      disabled={authBusy}
+                      className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 text-sm font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    >
+                      {authBusy ? 'Memverifikasi...' : 'Buka Dashboard'}
+                    </button>
+
+                    {backendMode === 'supabase' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowResetForm(true);
+                          setResetFeedback(null);
+                          setResetLoginInput(emailInput);
+                        }}
+                        className="text-xs font-medium text-[#EAB308] hover:text-[#FACC15] hover:underline cursor-pointer"
+                      >
+                        Lupa kata sandi?
+                      </button>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleSendLoginResetEmail} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="dash-reset-login"
+                      className="block text-xs font-medium text-[#D6CFC2]"
+                    >
+                      Email atau Username Admin untuk Reset Kata Sandi
+                    </label>
+                    <input
+                      id="dash-reset-login"
+                      type="text"
+                      required
+                      value={resetLoginInput}
+                      onChange={(e) => setResetLoginInput(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                    />
+                  </div>
+
+                  {resetFeedback && (
+                    <p
+                      role="alert"
+                      className={`text-xs ${
+                        resetFeedback.type === 'success' ? 'text-[#4ADE80]' : 'text-[#FCA5A5]'
+                      }`}
+                    >
+                      {resetFeedback.message}
+                    </p>
+                  )}
+
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="submit"
+                      disabled={resetBusy}
+                      className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 text-sm font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                    >
+                      {resetBusy ? 'Mengirim...' : 'Kirim Tautan Reset'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowResetForm(false);
+                        setResetFeedback(null);
+                      }}
+                      className="text-xs font-medium text-[#D6CFC2] hover:text-[#F5F2EB] hover:underline cursor-pointer"
+                    >
+                      Kembali ke Login
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {backendMode === 'static' && (
                 <div className="border-t border-[#2A3024] pt-4 text-xs text-[#A8A092] space-y-1">
@@ -3566,14 +3730,14 @@ export function AdminDashboard({
                           : 'Pilih File Foto atau Video'}
                       <input
                         type="file"
-                        accept="image/*,video/mp4,video/webm,video/quicktime"
+                        accept="image/*,video/*"
                         disabled={uploadingTarget === 'gallery'}
                         onChange={handleGalleryMediaUpload}
                         className="sr-only"
                       />
                     </label>
                     <span className="text-xs text-[#A8A092]">
-                      Mendukung Foto (JPG, PNG, WebP) &amp; Video (MP4, WebM, MOV · maks 50 MB)
+                      Mendukung Foto &amp; Video (tanpa batas ukuran file)
                     </span>
                   </div>
 
@@ -4025,47 +4189,169 @@ export function AdminDashboard({
             </div>
           )}
 
-          {/* SECTION 7: PENGATURAN & CADANGAN */}
+          {/* SECTION 7: PENGATURAN AKUN ADMIN */}
           {section === 'settings' && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-6 space-y-5">
-                <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
-                  Pengaturan Akun &amp; Cadangan Data
-                </h1>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm border-y border-[#2A3024] py-4">
+              {/* Ringkasan Akun & Koneksi */}
+              <div className="rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 sm:p-6 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs text-[#A8A092]">Email Sesi Aktif</p>
-                    <p className="font-mono text-[#F5F2EB] mt-0.5">{adminEmail}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#A8A092]">Status Sinkronisasi WebSocket</p>
-                    <p className="font-mono text-[#4ADE80] mt-0.5">
-                      {wsConnected ? `Terhubung (${onlineCount} klien)` : 'Menyambungkan...'}
+                    <h1 className="font-display text-xl font-bold text-[#F5F2EB]">
+                      Pengaturan Akun Admin
+                    </h1>
+                    <p className="text-xs text-[#A8A092] mt-1">
+                      Kelola keamanan kata sandi dan informasi sesi akun admin Anda.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleDownloadBackup}
-                    className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" aria-hidden="true" />
-                    Unduh Cadangan Data Band (JSON)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold border border-[#2A3024] text-[#FCA5A5] rounded-lg hover:bg-[#2B1212] cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" aria-hidden="true" />
-                    Keluar dari Dashboard
-                  </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm border-t border-[#2A3024] pt-4">
+                  <div>
+                    <p className="text-xs text-[#A8A092]">Username Aktif</p>
+                    <p className="font-mono text-[#EAB308] mt-0.5 break-all">
+                      {adminUsername || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#A8A092]">Nama Admin</p>
+                    <p className="text-[#F5F2EB] mt-0.5 break-words">
+                      {adminFullName || 'Admin Rasmalas'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#A8A092]">Email Sesi Aktif</p>
+                    <p className="font-mono text-[#F5F2EB] mt-0.5 break-all">
+                      {adminEmail || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#A8A092]">Status Sinkronisasi</p>
+                    <p className="font-mono text-[#4ADE80] mt-0.5">
+                      {backendMode === 'supabase'
+                        ? 'Supabase Realtime Aktif'
+                        : wsConnected
+                          ? `Terhubung (${onlineCount} klien)`
+                          : 'Menyambungkan...'}
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* Reset / Ubah Kata Sandi */}
+              <form
+                onSubmit={handleSaveNewPassword}
+                className="max-w-2xl rounded-xl border border-[#2A3024] bg-[#11150F]/85 p-5 sm:p-6 space-y-4"
+              >
+                <div className="flex items-center gap-2.5">
+                  <KeyRound className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                  <div>
+                    <h2 className="font-display text-base font-bold text-[#F5F2EB]">
+                      Reset / Ubah Kata Sandi Admin
+                    </h2>
+                    <p className="text-xs text-[#A8A092]">
+                      Tetapkan kata sandi baru secara langsung atau kirim tautan reset ke email.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="admin-new-password"
+                    className="block text-xs font-medium text-[#D6CFC2]"
+                  >
+                    Kata Sandi Baru
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="admin-new-password"
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) =>
+                        setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                      }
+                      placeholder="Minimal 6 karakter"
+                      className="w-full min-h-[42px] pl-3.5 pr-11 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((v) => !v)}
+                      aria-label={showNewPassword ? 'Sembunyikan sandi' : 'Lihat sandi'}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="admin-confirm-password"
+                    className="block text-xs font-medium text-[#D6CFC2]"
+                  >
+                    Konfirmasi Kata Sandi Baru
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="admin-confirm-password"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) =>
+                        setPasswordForm((prev) => ({
+                          ...prev,
+                          confirmPassword: e.target.value,
+                        }))
+                      }
+                      placeholder="Ulangi kata sandi baru"
+                      className="w-full min-h-[42px] pl-3.5 pr-11 py-2 text-sm bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB] focus:outline-none focus:border-[#EAB308]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      aria-label={showConfirmPassword ? 'Sembunyikan konfirmasi sandi' : 'Lihat konfirmasi sandi'}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[34px] min-w-[34px] inline-flex items-center justify-center rounded text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={passwordBusy}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[42px] px-5 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg hover:bg-[#FACC15] disabled:opacity-50 cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4" aria-hidden="true" />
+                    {passwordBusy ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}
+                  </button>
+
+                  {backendMode === 'supabase' && (
+                    <button
+                      type="button"
+                      disabled={resetEmailBusy}
+                      onClick={() => void handleSendResetEmailFromSettings()}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[42px] px-4 py-2 text-xs font-medium border border-[#2A3024] text-[#D6CFC2] rounded-lg hover:border-[#EAB308] hover:text-[#F5F2EB] disabled:opacity-50 cursor-pointer"
+                    >
+                      <Mail className="w-4 h-4" aria-hidden="true" />
+                      {resetEmailBusy ? 'Mengirim...' : 'Kirim Link Reset ke Email'}
+                    </button>
+                  )}
+                </div>
+              </form>
             </div>
           )}
         </main>

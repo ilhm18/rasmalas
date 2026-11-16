@@ -77,8 +77,6 @@ export const DEFAULT_STATE: BandState = {
       navLabel: 'Musik',
       kicker: '02. Pemutar Musik Streaming',
       title: 'Katalog Rilisan & Studio Dub Stream',
-      subtitle:
-        'Putar langsung rekaman reggae one-drop dan sesi dub analog dengan kontrol pemutar penuh.',
       builtinKey: 'musik',
       visible: true,
       showInNav: true,
@@ -90,8 +88,7 @@ export const DEFAULT_STATE: BandState = {
       navLabel: 'Jadwal',
       kicker: '03. Jadwal Panggung & Acara',
       title: 'Jadwal Penampilan Rasmalas',
-      subtitle:
-        'Cek kota terdekat, ketersediaan tiket, dan konfirmasi kehadiran Anda.',
+      subtitle: 'Cek kota terdekat dan ketersediaan tiket.',
       builtinKey: 'jadwal',
       visible: true,
       showInNav: true,
@@ -112,7 +109,7 @@ export const DEFAULT_STATE: BandState = {
       id: 'sec-sosial',
       slug: 'sosial',
       navLabel: 'Sosial',
-      kicker: '05. Integrasi Media Sosial Real-Time',
+      kicker: '05. Integrasi Media Sosial',
       title: 'Kanal Resmi & Siaran Langsung Komunitas',
       builtinKey: 'sosial',
       visible: true,

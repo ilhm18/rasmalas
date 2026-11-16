@@ -30,8 +30,17 @@ import {
   updateState,
 } from './server/store.ts';
 import {
+  getLocalAdminInfo,
+  updateLocalAdminPassword,
+  updateLocalAdminProfile,
+  verifyLocalAdminLogin,
+} from './server/adminAuthStore.ts';
+import {
   authenticateSupabaseAdmin,
+  getSupabaseAdminClient,
   isSupabaseConfigured,
+  updateSupabaseAdminPasswordServer,
+  updateSupabaseAdminUsernameServer,
   uploadMediaToSupabaseStorage,
 } from './server/supabase.ts';
 import type {
@@ -53,8 +62,6 @@ dotenv.config();
 const PORT = Number(process.env.PORT || 3000);
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@rasmalas.id';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'reggae2026';
 const SESSION_SECRET =
   process.env.SESSION_SECRET || 'rasmalas-analog-dub-session-key-2026';
 
@@ -157,73 +164,119 @@ async function startServer(): Promise<void> {
   }
   app.use('/uploads', express.static(uploadsDir));
 
-  // Real file upload endpoint for photos, videos, and audio (Supabase Storage + local fallback)
-  app.post(
-    '/api/admin/upload',
-    requireAdmin,
-    express.raw({
-      type: ['image/*', 'video/*', 'audio/*', 'application/octet-stream'],
-      limit: '50mb',
-    }),
-    async (req, res) => {
-      const adminReq = req as AdminRequest;
-      const body = req.body;
-      if (!Buffer.isBuffer(body) || body.length === 0) {
+  // Real file upload endpoint for photos, videos, audio, and files without artificial size limits
+  app.post('/api/admin/upload', requireAdmin, async (req, res) => {
+    const adminReq = req as AdminRequest;
+    req.setTimeout(0);
+    res.setTimeout(0);
+
+    const rawMime = String(req.headers['content-type'] || '')
+      .split(';')[0]
+      .trim()
+      .toLowerCase();
+    const rawName = decodeURIComponent(String(req.headers['x-file-name'] || 'media'));
+    const extMatch = /\.([a-zA-Z0-9]{1,8})$/.exec(rawName);
+    const extFromMime = rawMime.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'bin';
+    const ext = extMatch
+      ? extMatch[1].toLowerCase()
+      : extFromMime === 'quicktime'
+        ? 'mov'
+        : extFromMime;
+
+    const isVideo =
+      rawMime.startsWith('video/') ||
+      ['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v'].includes(ext);
+    const isAudio =
+      rawMime.startsWith('audio/') ||
+      ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext);
+    const effectiveMime =
+      rawMime ||
+      (isVideo
+        ? `video/${ext === 'mov' ? 'quicktime' : ext}`
+        : isAudio
+          ? `audio/${ext === 'mp3' ? 'mpeg' : ext}`
+          : 'application/octet-stream');
+
+    const safeFolder =
+      String(req.headers['x-folder'] || 'media')
+        .replace(/[^a-z0-9_-]/gi, '')
+        .slice(0, 24) || 'media';
+    const fileName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+    const storagePath = `${safeFolder}/${fileName}`;
+    const mediaType: 'image' | 'video' | 'audio' = isVideo
+      ? 'video'
+      : isAudio
+        ? 'audio'
+        : 'image';
+
+    const folderPath = path.join(uploadsDir, safeFolder);
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+    const localFilePath = path.join(folderPath, fileName);
+
+    try {
+      let bytesWritten = 0;
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(localFilePath);
+        req.on('data', (chunk: Buffer) => {
+          bytesWritten += chunk.length;
+        });
+        req.on('error', (err) => {
+          writeStream.destroy();
+          reject(err);
+        });
+        writeStream.on('error', (err) => reject(err));
+        writeStream.on('finish', () => resolve());
+        req.pipe(writeStream);
+      });
+
+      if (bytesWritten === 0) {
+        if (fs.existsSync(localFilePath)) fs.unlinkSync(localFilePath);
         res.status(400).json({ error: 'File upload kosong atau tidak valid.' });
         return;
       }
 
-      const rawMime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-      const isImage = rawMime.startsWith('image/');
-      const isVideo = rawMime.startsWith('video/');
-      const isAudio = rawMime.startsWith('audio/');
-      if (!isImage && !isVideo && !isAudio) {
-        res.status(400).json({
-          error: 'Format file harus berupa foto (JPG/PNG/WebP/GIF), video (MP4/WebM/MOV), atau audio (MP3/WAV).',
-        });
-        return;
+      if (isSupabaseConfigured()) {
+        const fileBody =
+          typeof (fs as unknown as { openAsBlob?: (p: string, o?: { type?: string }) => Promise<Blob> }).openAsBlob === 'function'
+            ? await (fs as unknown as { openAsBlob: (p: string, o?: { type?: string }) => Promise<Blob> }).openAsBlob(
+                localFilePath,
+                { type: effectiveMime }
+              )
+            : await fs.promises.readFile(localFilePath);
+
+        const publicUrl = await uploadMediaToSupabaseStorage(
+          fileBody,
+          storagePath,
+          effectiveMime,
+          adminReq.sbToken
+        );
+        if (publicUrl) {
+          if (fs.existsSync(localFilePath)) fs.unlinkSync(localFilePath);
+          res.status(201).json({ url: publicUrl, mediaType, storage: 'supabase' });
+          return;
+        }
       }
 
-      const rawName = decodeURIComponent(String(req.headers['x-file-name'] || 'media'));
-      const extFromMime = rawMime.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'bin';
-      const extMatch = /\.([a-zA-Z0-9]{2,5})$/.exec(rawName);
-      const ext = extMatch ? extMatch[1].toLowerCase() : extFromMime === 'quicktime' ? 'mov' : extFromMime;
-      const safeFolder = String(req.headers['x-folder'] || 'media').replace(/[^a-z0-9_-]/gi, '').slice(0, 24) || 'media';
-      const fileName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
-      const storagePath = `${safeFolder}/${fileName}`;
-      const mediaType: 'image' | 'video' | 'audio' = isVideo ? 'video' : isAudio ? 'audio' : 'image';
-
-      try {
-        if (isSupabaseConfigured()) {
-          const publicUrl = await uploadMediaToSupabaseStorage(
-            body,
-            storagePath,
-            rawMime,
-            adminReq.sbToken
-          );
-          if (publicUrl) {
-            res.status(201).json({ url: publicUrl, mediaType, storage: 'supabase' });
-            return;
-          }
+      res.status(201).json({
+        url: `/uploads/${safeFolder}/${fileName}`,
+        mediaType,
+        storage: 'local',
+      });
+    } catch (err) {
+      if (fs.existsSync(localFilePath)) {
+        try {
+          fs.unlinkSync(localFilePath);
+        } catch {
+          // ignore cleanup failure
         }
-
-        const folderPath = path.join(uploadsDir, safeFolder);
-        if (!fs.existsSync(folderPath)) {
-          fs.mkdirSync(folderPath, { recursive: true });
-        }
-        fs.writeFileSync(path.join(folderPath, fileName), body);
-        res.status(201).json({
-          url: `/uploads/${safeFolder}/${fileName}`,
-          mediaType,
-          storage: 'local',
-        });
-      } catch (err) {
-        res.status(500).json({
-          error: err instanceof Error ? err.message : 'Gagal mengunggah file media.',
-        });
       }
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Gagal mengunggah file media.',
+      });
     }
-  );
+  });
 
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -367,7 +420,7 @@ async function startServer(): Promise<void> {
 
   app.post('/api/social/shoutouts', async (req, res) => {
     const senderName = String(req.body?.senderName ?? '').trim().slice(0, 50);
-    const city = String(req.body?.city ?? '').trim().slice(0, 40) || 'Nusantara';
+    const city = String(req.body?.city ?? '').trim().slice(0, 40);
     const message = String(req.body?.message ?? '').trim().slice(0, 240);
 
     if (!senderName || !message) {
@@ -403,41 +456,50 @@ async function startServer(): Promise<void> {
     res.status(201).json({ shoutouts: next.shoutouts });
   });
 
-  // Admin authentication endpoints (Supabase Auth + admin_users, with fallback env admin)
+  // Admin authentication endpoints (Supabase Auth + admin_users, with persisted local fallback)
   app.post('/api/auth/login', async (req, res) => {
-    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    const loginInput = String(req.body?.email ?? req.body?.username ?? '').trim();
     const password = String(req.body?.password ?? '');
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email dan kata sandi wajib diisi.' });
+    if (!loginInput || !password) {
+      res.status(400).json({ error: 'Email/username dan kata sandi wajib diisi.' });
       return;
     }
 
     let sbAccessToken: string | undefined;
-    let authenticatedEmail = email;
+    let authenticatedEmail = loginInput.toLowerCase();
+    let username = getLocalAdminInfo().username;
+    let fullName = getLocalAdminInfo().fullName;
 
     if (isSupabaseConfigured()) {
-      const sbAuth = await authenticateSupabaseAdmin(email, password);
+      const sbAuth = await authenticateSupabaseAdmin(loginInput, password);
       if (sbAuth.ok && sbAuth.email) {
         sbAccessToken = sbAuth.accessToken;
         authenticatedEmail = sbAuth.email;
-      } else if (
-        email === ADMIN_EMAIL.toLowerCase() &&
-        password === ADMIN_PASSWORD
-      ) {
-        authenticatedEmail = ADMIN_EMAIL.toLowerCase();
+        username = sbAuth.username || username;
+        fullName = sbAuth.fullName || fullName;
       } else {
-        res.status(401).json({
-          error: sbAuth.error || 'Email atau kata sandi admin tidak sesuai.',
-        });
+        const localCheck = verifyLocalAdminLogin(loginInput, password);
+        if (localCheck.ok) {
+          authenticatedEmail = localCheck.email;
+          username = localCheck.username;
+          fullName = localCheck.fullName;
+        } else {
+          res.status(401).json({
+            error: sbAuth.error || 'Email/username atau kata sandi admin tidak sesuai.',
+          });
+          return;
+        }
+      }
+    } else {
+      const localCheck = verifyLocalAdminLogin(loginInput, password);
+      if (!localCheck.ok) {
+        res.status(401).json({ error: 'Email/username atau kata sandi admin tidak sesuai.' });
         return;
       }
-    } else if (
-      email !== ADMIN_EMAIL.toLowerCase() ||
-      password !== ADMIN_PASSWORD
-    ) {
-      res.status(401).json({ error: 'Email atau kata sandi admin tidak sesuai.' });
-      return;
+      authenticatedEmail = localCheck.email;
+      username = localCheck.username;
+      fullName = localCheck.fullName;
     }
 
     const token = signToken(authenticatedEmail, sbAccessToken);
@@ -448,6 +510,8 @@ async function startServer(): Promise<void> {
     res.json({
       authenticated: true,
       email: authenticatedEmail,
+      username,
+      fullName,
       token,
     });
   });
@@ -464,13 +528,117 @@ async function startServer(): Promise<void> {
     res.json({ authenticated: false });
   });
 
-  app.get('/api/auth/me', (req, res) => {
+  app.get('/api/auth/me', async (req, res) => {
     const verified = verifyToken(extractToken(req));
     if (!verified) {
-      res.json({ authenticated: false, email: null });
+      res.json({ authenticated: false, email: null, username: null, fullName: null });
       return;
     }
-    res.json({ authenticated: true, email: verified.email });
+    const sbToken = verified.sid ? sbTokenStore.get(verified.sid) : undefined;
+    if (sbToken && isSupabaseConfigured()) {
+      const sbClient = getSupabaseAdminClient(sbToken);
+      if (sbClient) {
+        const { data: row } = await sbClient
+          .from('admin_users')
+          .select('email, username, full_name')
+          .ilike('email', verified.email)
+          .maybeSingle();
+        if (row) {
+          res.json({
+            authenticated: true,
+            email: row.email || verified.email,
+            username: row.username || verified.email.split('@')[0],
+            fullName: row.full_name || 'Admin Rasmalas',
+          });
+          return;
+        }
+      }
+    }
+    const localInfo = getLocalAdminInfo();
+    res.json({
+      authenticated: true,
+      email: verified.email,
+      username: localInfo.username,
+      fullName: localInfo.fullName,
+    });
+  });
+
+  app.put('/api/admin/account/profile', requireAdmin, async (req, res) => {
+    const adminReq = req as AdminRequest;
+    const rawUsername = String(req.body?.username ?? '').trim();
+    const rawFullName = String(req.body?.fullName ?? '').trim();
+    const rawEmail = String(req.body?.email ?? '').trim().toLowerCase();
+
+    if (rawUsername && !/^[a-zA-Z0-9._-]{3,32}$/.test(rawUsername)) {
+      res.status(400).json({
+        error: 'Username harus 3–32 karakter (hanya huruf, angka, titik, _ atau -).',
+      });
+      return;
+    }
+
+    try {
+      if (adminReq.sbToken && isSupabaseConfigured()) {
+        const updatedSb = await updateSupabaseAdminUsernameServer(
+          adminReq.sbToken,
+          rawUsername || adminReq.adminEmail?.split('@')[0] || 'admin',
+          rawFullName || 'Admin Rasmalas'
+        );
+        updateLocalAdminProfile({
+          username: updatedSb.username,
+          fullName: updatedSb.fullName,
+        });
+        res.json({
+          email: updatedSb.email || adminReq.adminEmail,
+          username: updatedSb.username,
+          fullName: updatedSb.fullName,
+        });
+        return;
+      }
+
+      const updatedLocal = updateLocalAdminProfile({
+        username: rawUsername || undefined,
+        fullName: rawFullName || undefined,
+        email: rawEmail || undefined,
+      });
+
+      const nextToken = signToken(updatedLocal.email, adminReq.sbToken);
+      res.setHeader(
+        'Set-Cookie',
+        `${COOKIE_NAME}=${encodeURIComponent(nextToken)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`
+      );
+      res.json({
+        email: updatedLocal.email,
+        username: updatedLocal.username,
+        fullName: updatedLocal.fullName,
+        token: nextToken,
+      });
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : 'Gagal memperbarui username admin.',
+      });
+    }
+  });
+
+  app.put('/api/admin/account/password', requireAdmin, async (req, res) => {
+    const adminReq = req as AdminRequest;
+    const newPassword = String(req.body?.newPassword ?? '');
+
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: 'Kata sandi baru minimal 6 karakter.' });
+      return;
+    }
+
+    try {
+      if (adminReq.sbToken && isSupabaseConfigured()) {
+        await updateSupabaseAdminPasswordServer(adminReq.sbToken, newPassword);
+      }
+      updateLocalAdminPassword(newPassword);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : 'Gagal memperbarui kata sandi admin.',
+      });
+    }
   });
 
   // Admin protected CRUD endpoints
