@@ -1,0 +1,6 @@
+{
+  "name": "Senja Roots — Official Reggae Band",
+  "description": "Website resmi band reggae Senja Roots dengan galeri foto, jadwal tur, pemutar musik streaming, integrasi media sosial real-time, dan panel admin.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

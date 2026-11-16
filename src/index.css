@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #080B07;
+    background-image:
+      radial-gradient(ellipse 85% 55% at 10% 8%, rgba(22, 163, 74, 0.28) 0%, transparent 62%),
+      radial-gradient(ellipse 75% 50% at 50% 28%, rgba(234, 179, 8, 0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 85% 55% at 90% 15%, rgba(220, 38, 38, 0.24) 0%, transparent 62%),
+      radial-gradient(ellipse 90% 60% at 25% 82%, rgba(21, 128, 61, 0.20) 0%, transparent 65%),
+      radial-gradient(ellipse 80% 55% at 82% 85%, rgba(185, 28, 28, 0.20) 0%, transparent 65%),
+      linear-gradient(135deg, #071A0F 0%, #171507 38%, #1C0B0A 72%, #090C08 100%);
+    background-attachment: fixed;
+    color: #F5F2EB;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+.reggae-hairline {
+  background: linear-gradient(90deg, #16A34A 0%, #EAB308 50%, #DC2626 100%);
+}
+
+@keyframes slow-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-vinyl {
+  animation: slow-spin 14s linear infinite;
+}
+
+.animate-vinyl-paused {
+  animation: slow-spin 14s linear infinite;
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-vinyl,
+  .animate-vinyl-paused {
+    animation: none;
+  }
+}
