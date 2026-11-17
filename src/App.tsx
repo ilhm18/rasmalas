@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { BandProfileSection } from './components/BandProfileSection';
 import { CustomSectionBlock } from './components/CustomSectionBlock';
@@ -7,6 +7,7 @@ import { GallerySection } from './components/GallerySection';
 import { HeroSection } from './components/HeroSection';
 import { MusicPlayerSection } from './components/MusicPlayerSection';
 import { Navbar } from './components/Navbar';
+import { ReggaeAmbientBackdrop } from './components/ReggaeAmbientBackdrop';
 import { SocialRealtimeSection } from './components/SocialRealtimeSection';
 import { StickyMiniPlayer } from './components/StickyMiniPlayer';
 import { TourSection } from './components/TourSection';
@@ -68,6 +69,12 @@ export default function App() {
   const [shuffle, setShuffle] = useState(false);
   const [repeatOne, setRepeatOne] = useState(false);
   const [miniDismissed, setMiniDismissed] = useState(false);
+
+  // Autoplay & track-switching refs
+  const hasAutoplayInitRef = useRef(false);
+  const autoplayedUyeeRef = useRef(false);
+  const userChangedTrackRef = useRef(false);
+  const cleanupAutoplayUnlockRef = useRef<(() => void) | null>(null);
 
   // Verify stored admin session on mount / mode detection
   useEffect(() => {
@@ -136,7 +143,17 @@ export default function App() {
     void checkSession();
   }, [authToken, backendMode, loading]);
 
-  const tracks = bandState?.tracks ?? [];
+  // Prioritize "Rasmalas - Uyee" at the top of the playlist if present
+  const tracks = useMemo(() => {
+    const raw = bandState?.tracks ?? [];
+    if (raw.length <= 1) return raw;
+    const uyeeIdx = raw.findIndex((t) => /uyee/i.test(t.title));
+    if (uyeeIdx <= 0) return raw;
+    const next = [...raw];
+    const [uyeeTrack] = next.splice(uyeeIdx, 1);
+    return [uyeeTrack, ...next];
+  }, [bandState?.tracks]);
+
   const currentTrack: Track | null =
     tracks.find((t) => t.id === currentTrackId) ?? null;
 
@@ -156,57 +173,175 @@ export default function App() {
     [backendMode]
   );
 
+  const recordTrackPlay = useCallback(
+    (trackId: string) => {
+      if (backendMode === 'express') {
+        void fetch(`/api/tracks/${encodeURIComponent(trackId)}/play`, {
+          method: 'POST',
+        });
+      } else {
+        setBandState((prev) =>
+          prev
+            ? {
+                ...prev,
+                tracks: prev.tracks.map((t) =>
+                  t.id === trackId ? { ...t, plays: t.plays + 1 } : t
+                ),
+              }
+            : prev
+        );
+        if (backendMode === 'supabase') {
+          void sbIncrementTrackPlay(trackId);
+        }
+      }
+    },
+    [backendMode, setBandState]
+  );
+
   const playTrack = useCallback(
     (track: Track) => {
       const audio = audioRef.current;
       if (!audio) return;
+
+      // Cancel any pending initial autoplay unlock listener because user explicitly selected a track
+      userChangedTrackRef.current = true;
+      if (cleanupAutoplayUnlockRef.current) {
+        cleanupAutoplayUnlockRef.current();
+        cleanupAutoplayUnlockRef.current = null;
+      }
+
       const src = getTrackSource(track);
       setCurrentTrackId(track.id);
       setMiniDismissed(false);
       setCurrentTime(0);
       setDuration(track.durationSec);
 
+      audio.pause();
       const resolvedHref = src.startsWith('blob:')
         ? src
         : new URL(src, window.location.origin).href;
       if (audio.src !== resolvedHref) {
         audio.src = src;
       }
+      audio.currentTime = 0;
       audio.volume = isMuted ? 0 : volume;
       audio
         .play()
         .then(() => {
           setIsPlaying(true);
-          if (backendMode === 'express') {
-            void fetch(`/api/tracks/${encodeURIComponent(track.id)}/play`, {
-              method: 'POST',
-            });
-          } else {
-            setBandState((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    tracks: prev.tracks.map((t) =>
-                      t.id === track.id ? { ...t, plays: t.plays + 1 } : t
-                    ),
-                  }
-                : prev
-            );
-            if (backendMode === 'supabase') {
-              void sbIncrementTrackPlay(track.id);
-            }
-          }
+          recordTrackPlay(track.id);
         })
         .catch(() => {
           setIsPlaying(false);
         });
     },
-    [backendMode, getTrackSource, isMuted, setBandState, volume]
+    [getTrackSource, isMuted, recordTrackPlay, volume]
   );
+
+  // Autoplay "Rasmalas - Uyee" (or first track) when the public site is first opened
+  useEffect(() => {
+    if (loading || viewMode !== 'public' || tracks.length === 0) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const uyeeTrack = tracks.find((t) => /uyee/i.test(t.title));
+    const targetTrack = uyeeTrack ?? tracks[0];
+    if (!targetTrack) return;
+
+    const shouldInitFirstTime = !hasAutoplayInitRef.current;
+    const shouldUpgradeToUyee =
+      Boolean(uyeeTrack) && !autoplayedUyeeRef.current && !userChangedTrackRef.current;
+
+    if (!shouldInitFirstTime && !shouldUpgradeToUyee) return;
+
+    hasAutoplayInitRef.current = true;
+    if (uyeeTrack) {
+      autoplayedUyeeRef.current = true;
+    }
+
+    if (cleanupAutoplayUnlockRef.current) {
+      cleanupAutoplayUnlockRef.current();
+      cleanupAutoplayUnlockRef.current = null;
+    }
+
+    const src = getTrackSource(targetTrack);
+    setCurrentTrackId(targetTrack.id);
+    setMiniDismissed(false);
+    setCurrentTime(0);
+    setDuration(targetTrack.durationSec);
+
+    const resolvedHref = src.startsWith('blob:')
+      ? src
+      : new URL(src, window.location.origin).href;
+    if (audio.src !== resolvedHref) {
+      audio.src = src;
+    }
+    audio.volume = isMuted ? 0 : volume;
+
+    let unlocked = false;
+    const removeUnlockListeners = () => {
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+
+    function handleFirstInteraction(e: Event) {
+      if (unlocked || userChangedTrackRef.current) {
+        removeUnlockListeners();
+        return;
+      }
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl?.closest?.('[data-track-select="true"]')) {
+        removeUnlockListeners();
+        return;
+      }
+      unlocked = true;
+      removeUnlockListeners();
+      cleanupAutoplayUnlockRef.current = null;
+
+      const el = audioRef.current;
+      if (!el || !el.paused) return;
+      el.play()
+        .then(() => {
+          setIsPlaying(true);
+          recordTrackPlay(targetTrack.id);
+        })
+        .catch(() => {
+          setIsPlaying(false);
+        });
+    }
+
+    audio
+      .play()
+      .then(() => {
+        unlocked = true;
+        setIsPlaying(true);
+        recordTrackPlay(targetTrack.id);
+      })
+      .catch(() => {
+        setIsPlaying(false);
+        cleanupAutoplayUnlockRef.current = removeUnlockListeners;
+        window.addEventListener('click', handleFirstInteraction, { passive: true });
+        window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+        window.addEventListener('keydown', handleFirstInteraction, { passive: true });
+      });
+  }, [loading, viewMode, tracks, getTrackSource, isMuted, volume, recordTrackPlay]);
+
+  useEffect(() => {
+    return () => {
+      if (cleanupAutoplayUnlockRef.current) {
+        cleanupAutoplayUnlockRef.current();
+      }
+    };
+  }, []);
 
   const handleTogglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (cleanupAutoplayUnlockRef.current) {
+      cleanupAutoplayUnlockRef.current();
+      cleanupAutoplayUnlockRef.current = null;
+    }
     if (!currentTrack && tracks[0]) {
       playTrack(tracks[0]);
       return;
@@ -460,7 +595,12 @@ export default function App() {
           onRefreshState={refetch}
         />
       ) : (
-        <div className={!miniDismissed && currentTrack ? 'pb-16' : ''}>
+        <div
+          className={`relative z-10 ${
+            !miniDismissed && currentTrack ? 'pb-16' : ''
+          }`}
+        >
+          <ReggaeAmbientBackdrop isPlaying={isPlaying} />
           {(() => {
             const visibleSections: SiteSection[] = [...(bandState.siteSections ?? [])]
               .filter((s) => s.visible)
@@ -470,7 +610,7 @@ export default function App() {
             const footerLinks = visibleSections.filter((s) => s.showInNav);
 
             return (
-              <>
+              <div className="relative z-10">
                 <Navbar
                   bandName={bandState.profile.name}
                   logoUrl={bandState.profile.logoUrl}
@@ -573,7 +713,7 @@ export default function App() {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 />
-              </>
+              </div>
             );
           })()}
 

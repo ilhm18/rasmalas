@@ -86,11 +86,19 @@ export function MusicPlayerSection({
         {active ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Active Vinyl Deck */}
-            <div className="lg:col-span-5 rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm p-5 sm:p-6 space-y-6">
-              <div className="flex items-center gap-4 sm:gap-5">
+            <div className="lg:col-span-5 rounded-2xl border border-[#2A3024] dub-surface p-5 sm:p-6 space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="h-[2px] w-full reggae-hairline absolute top-0 inset-x-0" aria-hidden="true" />
+
+              <div className="flex items-center gap-4 sm:gap-5 pt-1">
                 <div className="relative w-24 h-24 sm:w-32 sm:h-32 shrink-0">
+                  {isPlaying && (
+                    <div
+                      aria-hidden="true"
+                      className="absolute -inset-2 rounded-full bg-gradient-to-tr from-[#16A34A]/35 via-[#EAB308]/35 to-[#DC2626]/35 blur-md"
+                    />
+                  )}
                   <div
-                    className={`w-full h-full rounded-full overflow-hidden border-4 border-[#2A2620] shadow-lg ${
+                    className={`relative w-full h-full rounded-full overflow-hidden border-4 border-[#2A2620] shadow-xl ${
                       isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'
                     }`}
                   >
@@ -100,17 +108,31 @@ export function MusicPlayerSection({
                       title={active.title}
                       className="w-full h-full object-cover"
                     />
+                    <div aria-hidden="true" className="absolute inset-0 vinyl-grooves pointer-events-none" />
                   </div>
                   <div
                     aria-hidden="true"
-                    className="absolute inset-0 m-auto w-5 h-5 rounded-full bg-[#0C0B09] border border-[#2A2620]"
+                    className="absolute inset-0 m-auto w-6 h-6 rounded-full bg-[#090B08] border-2 border-[#EAB308]/60 shadow-inner"
                   />
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-xs text-[#EAB308] font-medium">
-                    {isPlaying ? 'Sedang Diputar' : 'Siap Diputar'}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    {isPlaying ? (
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex items-end gap-[2px] h-3.5 px-1"
+                      >
+                        <span className="w-[3px] h-full bg-[#16A34A] rounded-full animate-eq-1" />
+                        <span className="w-[3px] h-full bg-[#EAB308] rounded-full animate-eq-2" />
+                        <span className="w-[3px] h-full bg-[#DC2626] rounded-full animate-eq-3" />
+                        <span className="w-[3px] h-full bg-[#EAB308] rounded-full animate-eq-4" />
+                      </span>
+                    ) : null}
+                    <p className="text-xs text-[#EAB308] font-semibold tracking-wide">
+                      {isPlaying ? 'Sedang Diputar' : 'Siap Diputar'}
+                    </p>
+                  </div>
                   <h3 className="font-display text-lg sm:text-xl font-bold text-[#F5F2EB] leading-snug break-words">
                     {active.title}
                   </h3>
@@ -175,6 +197,7 @@ export function MusicPlayerSection({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                     data-track-select="true"
                     onClick={onPrev}
                     aria-label="Lagu sebelumnya"
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] text-[#F5F2EB] hover:bg-[#1F1C17] cursor-pointer"
@@ -183,6 +206,7 @@ export function MusicPlayerSection({
                   </button>
                   <button
                     type="button"
+                    data-track-select="true"
                     onClick={() => {
                       if (!currentTrack) {
                         onSelectTrack(active);
@@ -191,7 +215,7 @@ export function MusicPlayerSection({
                       }
                     }}
                     aria-label={isPlaying ? 'Jeda lagu' : 'Putar lagu'}
-                    className="min-h-[48px] min-w-[48px] inline-flex items-center justify-center rounded-full bg-[#EAB308] text-[#0C0B09] hover:bg-[#FACC15] transition-colors cursor-pointer"
+                    className="min-h-[48px] min-w-[48px] inline-flex items-center justify-center rounded-full bg-[#EAB308] text-[#0C0B09] hover:bg-[#FACC15] shadow-lg shadow-[#EAB308]/20 transition-all cursor-pointer"
                   >
                     {isPlaying ? (
                       <Pause className="w-5 h-5 fill-current" />
@@ -201,6 +225,7 @@ export function MusicPlayerSection({
                   </button>
                   <button
                     type="button"
+                    data-track-select="true"
                     onClick={onNext}
                     aria-label="Lagu berikutnya"
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] text-[#F5F2EB] hover:bg-[#1F1C17] cursor-pointer"
@@ -257,17 +282,17 @@ export function MusicPlayerSection({
             </div>
 
             {/* Tracklist Table */}
-            <div className="lg:col-span-7 rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm overflow-hidden">
+            <div className="lg:col-span-7 rounded-2xl border border-[#2A3024] dub-surface overflow-hidden shadow-2xl">
               <div className="px-4 sm:px-6 py-4 border-b border-[#2A2620] flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-[#F5F2EB]">
                   Daftar Putar ({tracks.length} Lagu)
                 </span>
                 <span className="text-xs text-[#A8A092]">
-                  Klik lagu untuk memutar audio
+                  Klik lagu lain kapan saja untuk mengganti pemutaran
                 </span>
               </div>
 
-              <div className="divide-y divide-[#2A2620]">
+              <div className="divide-y divide-[#2A2620]/80">
                 {tracks.map((track, idx) => {
                   const isActive = active.id === track.id;
                   const isCurrentlyPlaying = isActive && isPlaying;
@@ -275,6 +300,7 @@ export function MusicPlayerSection({
                     <button
                       key={track.id}
                       type="button"
+                      data-track-select="true"
                       onClick={() => {
                         if (isActive && currentTrack) {
                           onTogglePlay();
@@ -282,22 +308,47 @@ export function MusicPlayerSection({
                           onSelectTrack(track);
                         }
                       }}
-                      className={`w-full text-left px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 transition-colors duration-150 cursor-pointer ${
-                        isActive ? 'bg-[#1F1C17]' : 'hover:bg-[#1B1814]'
+                      className={`group relative w-full text-left px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 transition-all duration-200 cursor-pointer ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#EAB308]/15 via-[#16A34A]/10 to-transparent'
+                          : 'hover:bg-[#1B1814]/80'
                       }`}
                     >
+                      {isActive && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-0 inset-y-0 w-1 bg-gradient-to-b from-[#16A34A] via-[#EAB308] to-[#DC2626]"
+                        />
+                      )}
+
                       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                        <span className="w-6 sm:w-7 text-xs font-mono tabular-nums text-[#A8A092] shrink-0">
+                        <span className="w-6 sm:w-7 text-xs font-mono tabular-nums text-[#A8A092] shrink-0 flex items-center justify-center">
                           {isCurrentlyPlaying ? (
-                            <Pause className="w-4 h-4 text-[#EAB308]" />
+                            <span
+                              aria-hidden="true"
+                              className="inline-flex items-end gap-[2px] h-3.5"
+                            >
+                              <span className="w-[2.5px] h-full bg-[#16A34A] rounded-full animate-eq-1" />
+                              <span className="w-[2.5px] h-full bg-[#EAB308] rounded-full animate-eq-2" />
+                              <span className="w-[2.5px] h-full bg-[#DC2626] rounded-full animate-eq-3" />
+                            </span>
                           ) : isActive ? (
-                            <Play className="w-4 h-4 text-[#EAB308]" />
+                            <Play className="w-4 h-4 text-[#EAB308] fill-current" />
                           ) : (
-                            String(idx + 1).padStart(2, '0')
+                            <span className="group-hover:hidden">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                          )}
+                          {!isActive && (
+                            <Play className="w-4 h-4 text-[#EAB308] hidden group-hover:inline-block" />
                           )}
                         </span>
 
-                        <div className="w-11 h-11 rounded-lg overflow-hidden border border-[#2A2620] shrink-0">
+                        <div
+                          className={`w-11 h-11 rounded-lg overflow-hidden border shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                            isActive ? 'border-[#EAB308]/70 shadow-md shadow-[#EAB308]/10' : 'border-[#2A2620]'
+                          }`}
+                        >
                           <ImageWithFallback
                             src={track.coverUrl}
                             alt={track.title}
@@ -307,14 +358,20 @@ export function MusicPlayerSection({
 
                         <div className="min-w-0">
                           <p
-                            className={`text-sm font-semibold truncate ${
-                              isActive ? 'text-[#EAB308]' : 'text-[#F5F2EB]'
+                            className={`text-sm font-semibold truncate transition-colors ${
+                              isActive
+                                ? 'text-[#EAB308]'
+                                : 'text-[#F5F2EB] group-hover:text-[#EAB308]'
                             }`}
                           >
                             {track.title}
                           </p>
                           <p className="text-xs text-[#A8A092] truncate">
-                            {track.lyrics?.trim() ? 'Dilengkapi lirik lagu' : 'Audio streaming'}
+                            {isCurrentlyPlaying
+                              ? 'Sedang diputar · Audio streaming'
+                              : track.lyrics?.trim()
+                              ? 'Dilengkapi lirik lagu'
+                              : 'Audio streaming'}
                           </p>
                         </div>
                       </div>
@@ -323,7 +380,9 @@ export function MusicPlayerSection({
                         <span className="hidden sm:inline">
                           {track.plays.toLocaleString('id-ID')} putar
                         </span>
-                        <span className="text-[#D6CFC2]">{formatTime(track.durationSec)}</span>
+                        <span className={isActive ? 'text-[#EAB308] font-semibold' : 'text-[#D6CFC2]'}>
+                          {formatTime(track.durationSec)}
+                        </span>
                       </div>
                     </button>
                   );

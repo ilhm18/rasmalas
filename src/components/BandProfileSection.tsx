@@ -37,12 +37,13 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
           <div className="lg:col-span-5">
-            <div className="overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm aspect-[4/3]">
+            <div className="relative overflow-hidden rounded-2xl border border-[#2A3024] dub-surface shadow-xl aspect-[4/3] group">
+              <div className="h-[2px] w-full reggae-hairline absolute top-0 inset-x-0 z-10" aria-hidden="true" />
               <ImageWithFallback
                 src={profile.studioImage}
                 alt={`Sesi rekaman studio analog ${profile.name}`}
                 title="Studio Karang Analog"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
             </div>
           </div>
@@ -82,7 +83,7 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
               return (
                 <div
                   key={member.id}
-                  className="rounded-xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm p-5 sm:p-6 flex flex-col justify-between gap-4"
+                  className="rounded-xl border border-[#2A3024] dub-surface dub-card-hover p-5 sm:p-6 flex flex-col justify-between gap-4"
                 >
                   <div className="space-y-2">
                     <p className="text-xs text-[#EAB308] font-medium">{member.role}</p>

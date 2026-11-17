@@ -119,6 +119,20 @@ export const DEFAULT_STATE: BandState = {
   ],
   tracks: [
     {
+      id: 'trk-rasmalas-uyee',
+      title: 'Rasmalas - Uyee',
+      album: 'Rasmalas Single',
+      year: '2026',
+      durationSec: 299,
+      bpm: 76,
+      musicalKey: 'Am',
+      synthSeed: 1,
+      coverUrl: '/src/assets/images/hero_reggae_concert_1794832343358.jpg',
+      plays: 0,
+      credits: 'Rasmalas Official · Audio Streaming',
+      lyrics: '',
+    },
+    {
       id: 'trk-ombak-senja',
       title: 'Ombak Senja di Uluwatu',
       album: 'Pesisir Selatan (LP)',
@@ -126,7 +140,7 @@ export const DEFAULT_STATE: BandState = {
       durationSec: 26,
       bpm: 74,
       musicalKey: 'Am',
-      synthSeed: 1,
+      synthSeed: 2,
       coverUrl: '/src/assets/images/album_cover_senja_1794832345337.jpg',
       plays: 48210,
       credits:

@@ -7,16 +7,20 @@
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     font-family: var(--font-sans);
-    background-color: #080B07;
+    background-color: #060906;
     background-image:
-      radial-gradient(ellipse 85% 55% at 10% 8%, rgba(22, 163, 74, 0.28) 0%, transparent 62%),
-      radial-gradient(ellipse 75% 50% at 50% 28%, rgba(234, 179, 8, 0.18) 0%, transparent 60%),
-      radial-gradient(ellipse 85% 55% at 90% 15%, rgba(220, 38, 38, 0.24) 0%, transparent 62%),
-      radial-gradient(ellipse 90% 60% at 25% 82%, rgba(21, 128, 61, 0.20) 0%, transparent 65%),
-      radial-gradient(ellipse 80% 55% at 82% 85%, rgba(185, 28, 28, 0.20) 0%, transparent 65%),
-      linear-gradient(135deg, #071A0F 0%, #171507 38%, #1C0B0A 72%, #090C08 100%);
+      radial-gradient(ellipse 90% 60% at 12% 10%, rgba(22, 163, 74, 0.34) 0%, transparent 62%),
+      radial-gradient(ellipse 80% 55% at 52% 24%, rgba(234, 179, 8, 0.24) 0%, transparent 62%),
+      radial-gradient(ellipse 85% 60% at 88% 16%, rgba(220, 38, 38, 0.28) 0%, transparent 64%),
+      radial-gradient(ellipse 95% 65% at 20% 80%, rgba(21, 128, 61, 0.26) 0%, transparent 66%),
+      radial-gradient(ellipse 85% 60% at 84% 86%, rgba(234, 179, 8, 0.18) 0%, transparent 64%),
+      linear-gradient(145deg, #06150C 0%, #141206 36%, #190908 70%, #070A07 100%);
     background-attachment: fixed;
     color: #F5F2EB;
     overflow-x: hidden;
@@ -32,7 +36,48 @@
 }
 
 .reggae-hairline {
-  background: linear-gradient(90deg, #16A34A 0%, #EAB308 50%, #DC2626 100%);
+  background: linear-gradient(
+    90deg,
+    #16A34A 0%,
+    #22C55E 22%,
+    #EAB308 50%,
+    #F97316 74%,
+    #DC2626 100%
+  );
+}
+
+.dub-surface {
+  background: linear-gradient(
+    160deg,
+    rgba(19, 25, 16, 0.86) 0%,
+    rgba(14, 17, 12, 0.88) 55%,
+    rgba(22, 15, 13, 0.84) 100%
+  );
+  backdrop-filter: blur(14px);
+}
+
+.dub-card-hover {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dub-card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(234, 179, 8, 0.45);
+  box-shadow:
+    0 18px 40px -16px rgba(0, 0, 0, 0.75),
+    0 0 28px -8px rgba(234, 179, 8, 0.18);
+}
+
+.vinyl-grooves {
+  background-image: repeating-radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.04) 0px,
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 1px,
+    transparent 5px
+  );
 }
 
 @keyframes slow-spin {
@@ -41,6 +86,108 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes dub-orb-1 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(4vw, 3vh, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-3vw, 5vh, 0) scale(0.95);
+  }
+}
+
+@keyframes dub-orb-2 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  40% {
+    transform: translate3d(-5vw, -3vh, 0) scale(1.1);
+  }
+  75% {
+    transform: translate3d(3vw, 4vh, 0) scale(0.94);
+  }
+}
+
+@keyframes dub-orb-3 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4vw, -4vh, 0) scale(1.12);
+  }
+}
+
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes eq-bar-1 {
+  0%, 100% {
+    transform: scaleY(0.28);
+  }
+  45% {
+    transform: scaleY(1);
+  }
+  75% {
+    transform: scaleY(0.55);
+  }
+}
+
+@keyframes eq-bar-2 {
+  0%, 100% {
+    transform: scaleY(0.85);
+  }
+  30% {
+    transform: scaleY(0.3);
+  }
+  65% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes eq-bar-3 {
+  0%, 100% {
+    transform: scaleY(0.42);
+  }
+  35% {
+    transform: scaleY(0.95);
+  }
+  80% {
+    transform: scaleY(0.25);
+  }
+}
+
+@keyframes eq-bar-4 {
+  0%, 100% {
+    transform: scaleY(0.65);
+  }
+  25% {
+    transform: scaleY(1);
+  }
+  60% {
+    transform: scaleY(0.32);
+  }
+}
+
+@keyframes wave-slide {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-25%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -53,9 +200,64 @@
   animation-play-state: paused;
 }
 
+.animate-vinyl-bg {
+  animation: slow-spin 55s linear infinite;
+}
+
+.animate-dub-orb-1 {
+  animation: dub-orb-1 18s ease-in-out infinite;
+}
+
+.animate-dub-orb-2 {
+  animation: dub-orb-2 22s ease-in-out infinite;
+}
+
+.animate-dub-orb-3 {
+  animation: dub-orb-3 26s ease-in-out infinite;
+}
+
+.animate-float-gentle {
+  animation: float-gentle 6s ease-in-out infinite;
+}
+
+.animate-wave-slide {
+  animation: wave-slide 24s ease-in-out infinite;
+}
+
+.animate-eq-1 {
+  transform-origin: bottom;
+  animation: eq-bar-1 0.75s ease-in-out infinite;
+}
+
+.animate-eq-2 {
+  transform-origin: bottom;
+  animation: eq-bar-2 0.62s ease-in-out infinite;
+}
+
+.animate-eq-3 {
+  transform-origin: bottom;
+  animation: eq-bar-3 0.84s ease-in-out infinite;
+}
+
+.animate-eq-4 {
+  transform-origin: bottom;
+  animation: eq-bar-4 0.68s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-vinyl,
-  .animate-vinyl-paused {
+  .animate-vinyl-paused,
+  .animate-vinyl-bg,
+  .animate-dub-orb-1,
+  .animate-dub-orb-2,
+  .animate-dub-orb-3,
+  .animate-float-gentle,
+  .animate-wave-slide,
+  .animate-eq-1,
+  .animate-eq-2,
+  .animate-eq-3,
+  .animate-eq-4 {
     animation: none;
   }
 }
+
