@@ -230,10 +230,56 @@ export async function sbIncrementTourRsvp(tourId: string): Promise<void> {
   await client.rpc('increment_tour_rsvp', { tour_id: tourId });
 }
 
-export async function sbIncrementPostLike(postId: string): Promise<void> {
+export async function sbIncrementPostLike(
+  postId: string,
+  deviceId?: string
+): Promise<boolean> {
   const client = getBrowserSupabaseClient();
-  if (!client) return;
+  if (!client) return true;
+  if (deviceId) {
+    const { data, error } = await client.rpc('like_social_post_once', {
+      p_post_id: postId,
+      p_device_id: deviceId,
+    });
+    if (!error) {
+      return data !== false;
+    }
+  }
   await client.rpc('increment_post_like', { post_id: postId });
+  return true;
+}
+
+export async function sbDecrementPostLike(
+  postId: string,
+  deviceId?: string
+): Promise<boolean> {
+  const client = getBrowserSupabaseClient();
+  if (!client) return true;
+  if (deviceId) {
+    const { data, error } = await client.rpc('unlike_social_post_once', {
+      p_post_id: postId,
+      p_device_id: deviceId,
+    });
+    if (!error) {
+      return data !== false;
+    }
+  }
+  const { error: decErr } = await client.rpc('decrement_post_like', { post_id: postId });
+  if (!decErr) return true;
+
+  // Fallback if decrement RPC is not yet created
+  const { data: current } = await client
+    .from('social_posts')
+    .select('likes')
+    .eq('id', postId)
+    .maybeSingle();
+  if (current && typeof current.likes === 'number') {
+    await client
+      .from('social_posts')
+      .update({ likes: Math.max(0, current.likes - 1) })
+      .eq('id', postId);
+  }
+  return true;
 }
 
 export async function sbInsertShoutout(

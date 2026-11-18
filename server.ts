@@ -13,6 +13,7 @@ import {
   dbDeleteSocialPost,
   dbDeleteTour,
   dbDeleteTrack,
+  dbDecrementPostLike,
   dbIncrementPostLike,
   dbIncrementTourRsvp,
   dbIncrementTrackPlay,
@@ -396,14 +397,56 @@ async function startServer(): Promise<void> {
     res.json({ tours: next.tours });
   });
 
+  const postLikedDevices = new Map<string, Set<string>>();
+
   app.post('/api/social/posts/:id/like', async (req, res) => {
     const { id } = req.params;
+    const deviceId = String(req.body?.deviceId ?? '').trim().slice(0, 120);
+    const unlike = Boolean(req.body?.unlike);
     const exists = getState().socialPosts.some((p) => p.id === id);
     if (!exists) {
       res.status(404).json({ error: 'Postingan sosial tidak ditemukan.' });
       return;
     }
-    await dbIncrementPostLike(id);
+
+    if (unlike) {
+      if (deviceId) {
+        const likedSet = postLikedDevices.get(id);
+        likedSet?.delete(deviceId);
+      }
+      await dbDecrementPostLike(id, deviceId || undefined);
+      const next = updateState((draft) => {
+        const target = draft.socialPosts.find((p) => p.id === id);
+        if (target) target.likes = Math.max(0, target.likes - 1);
+      });
+      broadcast({
+        type: 'social:updated',
+        payload: {
+          socialChannels: next.socialChannels,
+          socialPosts: next.socialPosts,
+          shoutouts: next.shoutouts,
+        },
+      });
+      res.json({ socialPosts: next.socialPosts, liked: false });
+      return;
+    }
+
+    if (deviceId) {
+      const likedSet = postLikedDevices.get(id) ?? new Set<string>();
+      if (likedSet.has(deviceId)) {
+        res.json({ socialPosts: getState().socialPosts, alreadyLiked: true });
+        return;
+      }
+      likedSet.add(deviceId);
+      postLikedDevices.set(id, likedSet);
+    }
+
+    const incremented = await dbIncrementPostLike(id, deviceId || undefined);
+    if (!incremented) {
+      res.json({ socialPosts: getState().socialPosts, alreadyLiked: true });
+      return;
+    }
+
     const next = updateState((draft) => {
       const target = draft.socialPosts.find((p) => p.id === id);
       if (target) target.likes += 1;
@@ -416,7 +459,7 @@ async function startServer(): Promise<void> {
         shoutouts: next.shoutouts,
       },
     });
-    res.json({ socialPosts: next.socialPosts });
+    res.json({ socialPosts: next.socialPosts, alreadyLiked: false, liked: true });
   });
 
   app.post('/api/social/shoutouts', async (req, res) => {
@@ -960,7 +1003,10 @@ async function startServer(): Promise<void> {
         String(body.coverUrl ?? '').trim() ||
         '/src/assets/images/album_cover_senja_1794832345337.jpg',
       audioUrl: body.audioUrl ? String(body.audioUrl).trim() : undefined,
-      plays: 0,
+      plays:
+        body.plays !== undefined
+          ? Math.max(0, Math.floor(Number(body.plays) || 0))
+          : 0,
       lyrics: String(body.lyrics ?? 'Lirik belum ditambahkan.').trim().slice(0, 2000),
       credits: String(body.credits ?? 'Rasmalas Collective').trim().slice(0, 200),
     };
@@ -1006,6 +1052,8 @@ async function startServer(): Promise<void> {
       updated.coverUrl = body.coverUrl.trim();
     if (typeof body.audioUrl === 'string')
       updated.audioUrl = body.audioUrl.trim() || undefined;
+    if (body.plays !== undefined)
+      updated.plays = Math.max(0, Math.floor(Number(body.plays) || 0));
     if (typeof body.lyrics === 'string')
       updated.lyrics = body.lyrics.trim().slice(0, 2000);
     if (typeof body.credits === 'string')
@@ -1358,7 +1406,10 @@ async function startServer(): Promise<void> {
           : 'image'
         : undefined,
       externalUrl: body.externalUrl ? String(body.externalUrl).trim() : channel?.url,
-      likes: 0,
+      likes:
+        body.likes !== undefined
+          ? Math.max(0, Math.floor(Number(body.likes) || 0))
+          : 0,
       createdAt: new Date().toISOString(),
     };
 
@@ -1423,7 +1474,10 @@ async function startServer(): Promise<void> {
           : 'image'
         : undefined,
       externalUrl: body.externalUrl ? String(body.externalUrl).trim() : undefined,
-      likes: existing?.likes ?? 0,
+      likes:
+        body.likes !== undefined
+          ? Math.max(0, Math.floor(Number(body.likes) || 0))
+          : (existing?.likes ?? 0),
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
 

@@ -221,6 +221,7 @@ export function AdminDashboard({
     coverUrl: '/src/assets/images/album_cover_senja_1794832345337.jpg',
     credits: 'Rasmalas',
     lyrics: '',
+    plays: 0,
   });
 
   // Tours CRUD state
@@ -856,6 +857,7 @@ export function AdminDashboard({
       coverUrl: t.coverUrl,
       credits: t.credits,
       lyrics: t.lyrics,
+      plays: t.plays ?? 0,
     });
   }
 
@@ -872,6 +874,7 @@ export function AdminDashboard({
       coverUrl: '/src/assets/images/album_cover_senja_1794832345337.jpg',
       credits: 'Rasmalas',
       lyrics: '',
+      plays: 0,
     });
   }
 
@@ -881,6 +884,7 @@ export function AdminDashboard({
     setSaving(true);
     try {
       const resolvedDuration = Math.max(1, Math.round(trackForm.durationSec || 26));
+      const normalizedPlays = Math.max(0, Math.floor(Number(trackForm.plays) || 0));
       if (backendMode === 'supabase') {
         const existing = editingTrackId
           ? bandState.tracks.find((t) => t.id === editingTrackId)
@@ -898,7 +902,7 @@ export function AdminDashboard({
             trackForm.coverUrl.trim() ||
             '/src/assets/images/album_cover_senja_1794832345337.jpg',
           audioUrl: trackForm.audioUrl.trim() || undefined,
-          plays: existing?.plays ?? 0,
+          plays: normalizedPlays,
           credits: trackForm.credits.trim() || 'Rasmalas',
           lyrics: trackForm.lyrics.trim(),
         });
@@ -915,6 +919,7 @@ export function AdminDashboard({
             bpm: Number(trackForm.bpm) || 76,
             audioUrl: trackForm.audioUrl.trim() || undefined,
             durationSec: resolvedDuration,
+            plays: normalizedPlays,
           }),
         });
         const data = (await res.json()) as { error?: string };
@@ -1402,6 +1407,7 @@ export function AdminDashboard({
     const resolvedHandle =
       postAuthorHandle.trim() || channel?.handle || '@rasmalas.official';
     const resolvedExternalUrl = postExternalUrl.trim() || (isEditing ? undefined : channel?.url);
+    const normalizedLikes = Math.max(0, Math.floor(Number(editingPostLikes) || 0));
 
     try {
       if (backendMode === 'supabase') {
@@ -1413,7 +1419,7 @@ export function AdminDashboard({
           mediaUrl: postMediaUrl.trim() || undefined,
           mediaType: postMediaUrl.trim() ? postMediaType : undefined,
           externalUrl: resolvedExternalUrl,
-          likes: isEditing ? editingPostLikes : 0,
+          likes: normalizedLikes,
           createdAt: isEditing
             ? editingPostCreatedAt || new Date().toISOString()
             : new Date().toISOString(),
@@ -1430,6 +1436,7 @@ export function AdminDashboard({
             mediaUrl: postMediaUrl.trim() || undefined,
             mediaType: postMediaUrl.trim() ? postMediaType : undefined,
             externalUrl: resolvedExternalUrl,
+            likes: normalizedLikes,
           }),
         });
         const data = (await res.json()) as { error?: string };
@@ -1445,6 +1452,7 @@ export function AdminDashboard({
             mediaUrl: postMediaUrl.trim() || undefined,
             mediaType: postMediaUrl.trim() ? postMediaType : undefined,
             externalUrl: resolvedExternalUrl,
+            likes: normalizedLikes,
           }),
         });
         const data = (await res.json()) as { error?: string };
@@ -3167,6 +3175,44 @@ export function AdminDashboard({
 
                   <div>
                     <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                      Jumlah Putar (Plays Manual)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={trackForm.plays}
+                        onChange={(e) =>
+                          setTrackForm({
+                            ...trackForm,
+                            plays: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                          })
+                        }
+                        placeholder="0"
+                        className="w-full min-h-[38px] px-3 text-xs font-mono bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                      {[1, 10, 50, 100].map((inc) => (
+                        <button
+                          key={inc}
+                          type="button"
+                          onClick={() =>
+                            setTrackForm((prev) => ({
+                              ...prev,
+                              plays: Math.max(0, Math.floor(Number(prev.plays) || 0) + inc),
+                            }))
+                          }
+                          className="shrink-0 min-h-[38px] px-2.5 text-[11px] font-mono font-semibold bg-[#1A1F16] border border-[#2A3024] text-[#EAB308] hover:border-[#EAB308]/50 rounded-lg cursor-pointer transition-colors"
+                          title={`Tambah +${inc} putar`}
+                        >
+                          +{inc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
                       Lirik Lagu
                     </label>
                     <textarea
@@ -3995,6 +4041,41 @@ export function AdminDashboard({
                         onChange={(e) => setPostExternalUrl(e.target.value)}
                         placeholder="https://instagram.com/p/..."
                         className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-xs font-medium text-[#D6CFC2]">
+                          Jumlah Suka (Likes Manual)
+                        </label>
+                        <div className="inline-flex items-center gap-1">
+                          {[1, 10, 50, 100].map((delta) => (
+                            <button
+                              key={delta}
+                              type="button"
+                              onClick={() =>
+                                setEditingPostLikes((prev) =>
+                                  Math.max(0, (Number(prev) || 0) + delta)
+                                )
+                              }
+                              className="px-2 py-0.5 text-[11px] font-mono tabular-nums rounded border border-[#2A3024] bg-[#090B08] text-[#EAB308] hover:border-[#EAB308] cursor-pointer"
+                            >
+                              +{delta}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={editingPostLikes}
+                        onChange={(e) =>
+                          setEditingPostLikes(Math.max(0, Math.floor(Number(e.target.value) || 0)))
+                        }
+                        placeholder="0"
+                        className="w-full min-h-[38px] px-3 text-xs font-mono tabular-nums bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                       />
                     </div>
                   </div>

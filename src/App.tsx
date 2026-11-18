@@ -16,12 +16,14 @@ import { useBandRealtime } from './hooks/useBandRealtime';
 import {
   sbAdminLogout,
   sbAdminSessionCheck,
+  sbDecrementPostLike,
   sbIncrementPostLike,
   sbIncrementTrackPlay,
   sbInsertShoutout,
 } from './lib/supabaseBrowser';
 import { resolveAssetUrl } from './shared/assetUrl';
 import { getClientReggaeTrackUrl } from './shared/clientAudioSynth';
+import { getOrCreateDeviceId } from './shared/deviceLikes';
 import type { SiteSection, Track } from './shared/types';
 
 const TOKEN_STORAGE_KEY = 'senja_admin_token';
@@ -520,25 +522,43 @@ export default function App() {
     };
   }, [repeatOne, handleNext]);
 
-  async function handleLikePost(postId: string) {
+  async function handleLikePost(postId: string, unlike = false) {
+    const deviceId = getOrCreateDeviceId();
+
     if (backendMode === 'express') {
       await fetch(`/api/social/posts/${encodeURIComponent(postId)}/like`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId, unlike }),
       });
       return;
     }
+
     setBandState((prev) =>
       prev
         ? {
             ...prev,
             socialPosts: prev.socialPosts.map((p) =>
-              p.id === postId ? { ...p, likes: p.likes + 1 } : p
+              p.id === postId
+                ? {
+                    ...p,
+                    likes: unlike ? Math.max(0, p.likes - 1) : p.likes + 1,
+                  }
+                : p
             ),
           }
         : prev
     );
+
     if (backendMode === 'supabase') {
-      await sbIncrementPostLike(postId);
+      if (unlike) {
+        await sbDecrementPostLike(postId, deviceId);
+      } else {
+        const added = await sbIncrementPostLike(postId, deviceId);
+        if (!added) {
+          await refetch();
+        }
+      }
     }
   }
 

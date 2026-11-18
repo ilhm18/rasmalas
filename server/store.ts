@@ -702,11 +702,44 @@ export async function dbIncrementTourRsvp(id: string): Promise<void> {
   if (error) console.error('Supabase tour rsvp RPC warning:', error.message);
 }
 
-export async function dbIncrementPostLike(id: string): Promise<void> {
+export async function dbIncrementPostLike(
+  id: string,
+  deviceId?: string
+): Promise<boolean> {
   const client = getSupabasePublicClient();
-  if (!client) return;
+  if (!client) return true;
+  if (deviceId) {
+    const { data, error } = await client.rpc('like_social_post_once', {
+      p_post_id: id,
+      p_device_id: deviceId,
+    });
+    if (!error) {
+      return data !== false;
+    }
+  }
   const { error } = await client.rpc('increment_post_like', { post_id: id });
   if (error) console.error('Supabase post like RPC warning:', error.message);
+  return true;
+}
+
+export async function dbDecrementPostLike(
+  id: string,
+  deviceId?: string
+): Promise<boolean> {
+  const client = getSupabasePublicClient();
+  if (!client) return true;
+  if (deviceId) {
+    const { data, error } = await client.rpc('unlike_social_post_once', {
+      p_post_id: id,
+      p_device_id: deviceId,
+    });
+    if (!error) {
+      return data !== false;
+    }
+  }
+  const { error } = await client.rpc('decrement_post_like', { post_id: id });
+  if (error) console.error('Supabase post unlike RPC warning:', error.message);
+  return true;
 }
 
 export async function dbUpsertSiteSection(

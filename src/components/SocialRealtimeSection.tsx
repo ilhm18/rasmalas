@@ -2,6 +2,11 @@ import { useState, type FormEvent } from 'react';
 import { ExternalLink, Heart, MessageSquare, Send } from 'lucide-react';
 import { motion } from 'motion/react';
 import { resolveAssetUrl } from '../shared/assetUrl';
+import {
+  getLikedPostIds,
+  markPostLikedOnDevice,
+  unmarkPostLikedOnDevice,
+} from '../shared/deviceLikes';
 import type {
   FanShoutout,
   SiteSection,
@@ -15,7 +20,7 @@ interface SocialRealtimeSectionProps {
   posts: SocialPost[];
   shoutouts: FanShoutout[];
   sectionMeta?: SiteSection;
-  onLikePost: (postId: string) => Promise<void>;
+  onLikePost: (postId: string, unlike?: boolean) => Promise<void>;
   onSendShoutout: (senderName: string, city: string, message: string) => Promise<void>;
 }
 
@@ -44,6 +49,19 @@ export function SocialRealtimeSection({
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [formFeedback, setFormFeedback] = useState<string | null>(null);
+  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(() => getLikedPostIds());
+
+  async function handleDeviceLike(postId: string) {
+    if (likedPostIds.has(postId)) {
+      const next = unmarkPostLikedOnDevice(postId);
+      setLikedPostIds(new Set(next));
+      await onLikePost(postId, true);
+      return;
+    }
+    const next = markPostLikedOnDevice(postId);
+    setLikedPostIds(new Set(next));
+    await onLikePost(postId, false);
+  }
 
   async function handleSubmitShoutout(e: FormEvent) {
     e.preventDefault();
@@ -224,18 +242,38 @@ export function SocialRealtimeSection({
                       </div>
 
                       <div className="pt-2.5 border-t border-[#2A2620]/80 flex flex-wrap items-center justify-between gap-3">
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.04 }}
-                          whileTap={{ scale: 0.94 }}
-                          onClick={() => onLikePost(post.id)}
-                          className="inline-flex items-center gap-2 min-h-[36px] px-3 py-1.5 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] rounded-lg border border-[#2A2620] bg-[#11150F] cursor-pointer transition-colors"
-                        >
-                          <Heart className="w-3.5 h-3.5 text-[#EAB308]" aria-hidden="true" />
-                          <span className="font-mono tabular-nums">
-                            {post.likes.toLocaleString('id-ID')} Suka
-                          </span>
-                        </motion.button>
+                        {(() => {
+                          const hasLiked = likedPostIds.has(post.id);
+                          return (
+                            <motion.button
+                              type="button"
+                              aria-pressed={hasLiked}
+                              title={
+                                hasLiked
+                                  ? 'Klik untuk batalkan suka'
+                                  : 'Sukai kiriman ini'
+                              }
+                              whileHover={{ scale: 1.04 }}
+                              whileTap={{ scale: 0.94 }}
+                              onClick={() => void handleDeviceLike(post.id)}
+                              className={`inline-flex items-center gap-2 min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
+                                hasLiked
+                                  ? 'border-[#EAB308]/60 bg-[#EAB308]/14 text-[#EAB308] hover:border-[#F87171]/60 hover:bg-[#F87171]/10'
+                                  : 'border-[#2A2620] bg-[#11150F] text-[#D6CFC2] hover:text-[#EAB308] hover:border-[#EAB308]/50'
+                              }`}
+                            >
+                              <Heart
+                                className={`w-3.5 h-3.5 text-[#EAB308] transition-transform ${
+                                  hasLiked ? 'fill-[#EAB308] scale-110' : ''
+                                }`}
+                                aria-hidden="true"
+                              />
+                              <span className="font-mono tabular-nums">
+                                {post.likes.toLocaleString('id-ID')} Suka
+                              </span>
+                            </motion.button>
+                          );
+                        })()}
 
                         {post.externalUrl && (
                           <a
