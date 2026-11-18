@@ -37,10 +37,198 @@ export function getBrowserSupabaseClient(): SupabaseClient | null {
   return browserClient;
 }
 
+function hydrateBandStateFromRaw(raw: {
+  profile: Record<string, unknown>;
+  siteSections?: Array<Record<string, unknown>>;
+  members?: Array<Record<string, unknown>>;
+  tracks?: Array<Record<string, unknown>>;
+  tours?: Array<Record<string, unknown>>;
+  gallery?: Array<Record<string, unknown>>;
+  socialChannels?: Array<Record<string, unknown>>;
+  socialPosts?: Array<Record<string, unknown>>;
+  shoutouts?: Array<Record<string, unknown>>;
+}): BandState {
+  const p = raw.profile;
+  const rawSections = Array.isArray(raw.siteSections) ? raw.siteSections : [];
+  const hydratedSections: SiteSection[] =
+    rawSections.length > 0
+      ? rawSections.map((s) => ({
+          id: String(s.id ?? ''),
+          slug: String(s.slug ?? ''),
+          navLabel: String(s.nav_label ?? ''),
+          kicker: String(s.kicker ?? ''),
+          title: String(s.title ?? ''),
+          subtitle: s.subtitle ? String(s.subtitle) : undefined,
+          body: s.body ? String(s.body) : undefined,
+          imageUrl: s.image_url ? String(s.image_url) : undefined,
+          mediaType: s.media_type === 'video' ? 'video' : 'image',
+          ctaLabel: s.cta_label ? String(s.cta_label) : undefined,
+          ctaUrl: s.cta_url ? String(s.cta_url) : undefined,
+          builtinKey: (s.builtin_key as SiteSection['builtinKey']) ?? undefined,
+          visible: Boolean(s.visible),
+          showInNav: Boolean(s.show_in_nav),
+          sortOrder: Number(s.sort_order ?? 0),
+        }))
+      : DEFAULT_STATE.siteSections;
+
+  const profilSection = hydratedSections.find((s) => s.builtinKey === 'profil');
+
+  return {
+    profile: {
+      name: String(p.name ?? DEFAULT_STATE.profile.name),
+      logoUrl: p.logo_url ? String(p.logo_url) : undefined,
+      kicker: String(p.kicker ?? ''),
+      headline: String(p.headline ?? ''),
+      subheadline: String(p.subheadline ?? ''),
+      profileSectionTitle:
+        (p.profile_section_title as string | undefined) ??
+        profilSection?.title ??
+        DEFAULT_STATE.profile.profileSectionTitle,
+      profileSectionSubtitle:
+        (p.profile_section_subtitle as string | undefined) ??
+        profilSection?.subtitle ??
+        DEFAULT_STATE.profile.profileSectionSubtitle,
+      bio: String(p.bio ?? ''),
+      studioQuote: String(p.studio_quote ?? ''),
+      originCity: String(p.origin_city ?? ''),
+      bookingEmail: String(p.booking_email ?? ''),
+      heroImage: String(p.hero_image ?? ''),
+      studioImage: String(p.studio_image ?? ''),
+      heroCtaPrimary:
+        (p.hero_cta_primary as string | undefined) ?? DEFAULT_STATE.profile.heroCtaPrimary,
+      heroCtaSecondary:
+        (p.hero_cta_secondary as string | undefined) ??
+        DEFAULT_STATE.profile.heroCtaSecondary,
+      heroCardKicker:
+        (p.hero_card_kicker as string | undefined) ?? DEFAULT_STATE.profile.heroCardKicker,
+      heroCardTitle:
+        (p.hero_card_title as string | undefined) ?? DEFAULT_STATE.profile.heroCardTitle,
+      footerNote:
+        (p.footer_note as string | undefined) ?? DEFAULT_STATE.profile.footerNote,
+      footerDescription: p.footer_description ? String(p.footer_description) : undefined,
+      footerCopyright: p.footer_copyright ? String(p.footer_copyright) : undefined,
+      footerLinks: Array.isArray(p.footer_links)
+        ? (p.footer_links as BandProfile['footerLinks'])
+        : [],
+      stats: Array.isArray(p.stats)
+        ? (p.stats as BandProfile['stats'])
+        : DEFAULT_STATE.profile.stats,
+      members: (Array.isArray(raw.members) ? raw.members : []).map((m) => ({
+        id: String(m.id ?? ''),
+        name: String(m.name ?? ''),
+        role: String(m.role ?? ''),
+        instrument: String(m.instrument ?? ''),
+        origin: String(m.origin ?? ''),
+        instagramUrl: m.instagram_url ? String(m.instagram_url) : undefined,
+      })),
+    },
+    siteSections: hydratedSections,
+    tracks: (Array.isArray(raw.tracks) ? raw.tracks : []).map((t) => ({
+      id: String(t.id ?? ''),
+      title: String(t.title ?? ''),
+      album: String(t.album ?? ''),
+      year: String(t.year ?? ''),
+      durationSec: Number(t.duration_sec ?? 26),
+      bpm: Number(t.bpm ?? 76),
+      musicalKey: String(t.musical_key ?? 'Am'),
+      synthSeed: Number(t.synth_seed ?? 1),
+      coverUrl: String(t.cover_url ?? ''),
+      audioUrl: t.audio_url ? String(t.audio_url) : undefined,
+      plays: Number(t.plays ?? 0),
+      lyrics: String(t.lyrics ?? ''),
+      credits: String(t.credits ?? ''),
+    })),
+    tours: (Array.isArray(raw.tours) ? raw.tours : []).map((t) => ({
+      id: String(t.id ?? ''),
+      date: String(t.date ?? ''),
+      city: String(t.city ?? ''),
+      country: String(t.country ?? 'Indonesia'),
+      venue: String(t.venue ?? ''),
+      stageTime: String(t.stage_time ?? ''),
+      priceLabel: String(t.price_label ?? ''),
+      status: normalizeTourStatus(
+        String(t.date ?? ''),
+        (t.status as TourDate['status']) || 'Tersedia'
+      ),
+      ticketUrl: String(t.ticket_url ?? '#jadwal'),
+      rsvpCount: Number(t.rsvp_count ?? 0),
+      notes: t.notes ? String(t.notes) : undefined,
+    })),
+    gallery: (Array.isArray(raw.gallery) ? raw.gallery : []).map((g) => ({
+      id: String(g.id ?? ''),
+      title: String(g.title ?? ''),
+      category: (g.category as GalleryPhoto['category']) ?? 'Panggung',
+      imageUrl: String(g.image_url ?? ''),
+      mediaType: g.media_type === 'video' ? 'video' : 'image',
+      location: String(g.location ?? ''),
+      dateLabel: String(g.date_label ?? ''),
+      photographer: String(g.photographer ?? ''),
+      featured: Boolean(g.featured),
+    })),
+    socialChannels: (Array.isArray(raw.socialChannels) ? raw.socialChannels : []).map(
+      (c) => ({
+        platform: String(c.platform ?? ''),
+        handle: String(c.handle ?? ''),
+        url: String(c.url ?? ''),
+        followersLabel: String(c.followers_label ?? ''),
+        connected: Boolean(c.connected),
+      })
+    ),
+    socialPosts: (Array.isArray(raw.socialPosts) ? raw.socialPosts : []).map((sp) => ({
+      id: String(sp.id ?? ''),
+      platform: String(sp.platform ?? ''),
+      authorHandle: String(sp.author_handle ?? ''),
+      content: String(sp.content ?? ''),
+      mediaUrl: sp.media_url ? String(sp.media_url) : undefined,
+      mediaType: sp.media_type === 'video' ? 'video' : 'image',
+      externalUrl: sp.external_url ? String(sp.external_url) : undefined,
+      likes: Number(sp.likes ?? 0),
+      createdAt: String(sp.created_at ?? ''),
+    })),
+    shoutouts: (Array.isArray(raw.shoutouts) ? raw.shoutouts : []).map((s) => ({
+      id: String(s.id ?? ''),
+      senderName: String(s.sender_name ?? ''),
+      city: String(s.city ?? ''),
+      message: String(s.message ?? ''),
+      createdAt: String(s.created_at ?? ''),
+    })),
+    updatedAt: String(p.updated_at || new Date().toISOString()),
+  };
+}
+
 export async function fetchBandStateFromSupabase(): Promise<BandState> {
   const client = getBrowserSupabaseClient();
   if (!client) {
     return DEFAULT_STATE;
+  }
+
+  // Prefer single bundled RPC so individual table endpoints are not exposed in DevTools Network
+  const { data: rpcPayload, error: rpcErr } = await client.rpc('get_public_band_state');
+  if (!rpcErr && rpcPayload && typeof rpcPayload === 'object' && 'profile' in rpcPayload) {
+    const bundle = rpcPayload as {
+      profile: Record<string, unknown> | null;
+      siteSections?: Array<Record<string, unknown>>;
+      members?: Array<Record<string, unknown>>;
+      tracks?: Array<Record<string, unknown>>;
+      tours?: Array<Record<string, unknown>>;
+      gallery?: Array<Record<string, unknown>>;
+      socialChannels?: Array<Record<string, unknown>>;
+      socialPosts?: Array<Record<string, unknown>>;
+      shoutouts?: Array<Record<string, unknown>>;
+    };
+    if (bundle.profile) {
+      return hydrateBandStateFromRaw({
+        profile: bundle.profile,
+        siteSections: bundle.siteSections,
+        members: bundle.members,
+        tracks: bundle.tracks,
+        tours: bundle.tours,
+        gallery: bundle.gallery,
+        socialChannels: bundle.socialChannels,
+        socialPosts: bundle.socialPosts,
+        shoutouts: bundle.shoutouts,
+      });
+    }
   }
 
   const [
@@ -85,136 +273,19 @@ export async function fetchBandStateFromSupabase(): Promise<BandState> {
     return DEFAULT_STATE;
   }
 
-  const p = profileRes.data;
-  const hydratedSections: SiteSection[] =
-    !sectionsRes.error && Array.isArray(sectionsRes.data) && sectionsRes.data.length > 0
-      ? sectionsRes.data.map((s) => ({
-          id: s.id,
-          slug: s.slug,
-          navLabel: s.nav_label,
-          kicker: s.kicker ?? '',
-          title: s.title,
-          subtitle: s.subtitle ?? undefined,
-          body: s.body ?? undefined,
-          imageUrl: s.image_url ?? undefined,
-          mediaType: s.media_type === 'video' ? 'video' : 'image',
-          ctaLabel: s.cta_label ?? undefined,
-          ctaUrl: s.cta_url ?? undefined,
-          builtinKey: s.builtin_key ?? undefined,
-          visible: Boolean(s.visible),
-          showInNav: Boolean(s.show_in_nav),
-          sortOrder: Number(s.sort_order ?? 0),
-        }))
-      : DEFAULT_STATE.siteSections;
-
-  const profilSection = hydratedSections.find((s) => s.builtinKey === 'profil');
-
-  return {
-    profile: {
-      name: p.name,
-      logoUrl: p.logo_url ?? undefined,
-      kicker: p.kicker,
-      headline: p.headline,
-      subheadline: p.subheadline,
-      profileSectionTitle:
-        p.profile_section_title ??
-        profilSection?.title ??
-        DEFAULT_STATE.profile.profileSectionTitle,
-      profileSectionSubtitle:
-        p.profile_section_subtitle ??
-        profilSection?.subtitle ??
-        DEFAULT_STATE.profile.profileSectionSubtitle,
-      bio: p.bio,
-      studioQuote: p.studio_quote,
-      originCity: p.origin_city,
-      bookingEmail: p.booking_email,
-      heroImage: p.hero_image,
-      studioImage: p.studio_image,
-      heroCtaPrimary: p.hero_cta_primary ?? DEFAULT_STATE.profile.heroCtaPrimary,
-      heroCtaSecondary: p.hero_cta_secondary ?? DEFAULT_STATE.profile.heroCtaSecondary,
-      heroCardKicker: p.hero_card_kicker ?? DEFAULT_STATE.profile.heroCardKicker,
-      heroCardTitle: p.hero_card_title ?? DEFAULT_STATE.profile.heroCardTitle,
-      footerNote: p.footer_note ?? DEFAULT_STATE.profile.footerNote,
-      footerDescription: p.footer_description ?? undefined,
-      footerCopyright: p.footer_copyright ?? undefined,
-      footerLinks: Array.isArray(p.footer_links) ? p.footer_links : [],
-      stats: Array.isArray(p.stats) ? p.stats : DEFAULT_STATE.profile.stats,
-      members: (membersRes.data ?? []).map((m) => ({
-        id: m.id,
-        name: m.name,
-        role: m.role,
-        instrument: m.instrument,
-        origin: m.origin,
-        instagramUrl: m.instagram_url ?? undefined,
-      })),
-    },
-    siteSections: hydratedSections,
-    tracks: (tracksRes.data ?? []).map((t) => ({
-      id: t.id,
-      title: t.title,
-      album: t.album,
-      year: t.year,
-      durationSec: t.duration_sec,
-      bpm: t.bpm,
-      musicalKey: t.musical_key,
-      synthSeed: t.synth_seed,
-      coverUrl: t.cover_url,
-      audioUrl: t.audio_url ?? undefined,
-      plays: t.plays,
-      lyrics: t.lyrics,
-      credits: t.credits,
-    })),
-    tours: (toursRes.data ?? []).map((t) => ({
-      id: t.id,
-      date: t.date,
-      city: t.city,
-      country: t.country,
-      venue: t.venue,
-      stageTime: t.stage_time,
-      priceLabel: t.price_label,
-      status: normalizeTourStatus(t.date, t.status),
-      ticketUrl: t.ticket_url,
-      rsvpCount: t.rsvp_count,
-      notes: t.notes ?? undefined,
-    })),
-    gallery: (galleryRes.data ?? []).map((g) => ({
-      id: g.id,
-      title: g.title,
-      category: g.category,
-      imageUrl: g.image_url,
-      mediaType: g.media_type === 'video' ? 'video' : 'image',
-      location: g.location,
-      dateLabel: g.date_label,
-      photographer: g.photographer,
-      featured: Boolean(g.featured),
-    })),
-    socialChannels: (channelsRes.data ?? []).map((c) => ({
-      platform: c.platform,
-      handle: c.handle,
-      url: c.url,
-      followersLabel: c.followers_label,
-      connected: Boolean(c.connected),
-    })),
-    socialPosts: (postsRes.data ?? []).map((sp) => ({
-      id: sp.id,
-      platform: sp.platform,
-      authorHandle: sp.author_handle,
-      content: sp.content,
-      mediaUrl: sp.media_url ?? undefined,
-      mediaType: sp.media_type === 'video' ? 'video' : 'image',
-      externalUrl: sp.external_url ?? undefined,
-      likes: sp.likes,
-      createdAt: sp.created_at,
-    })),
-    shoutouts: (shoutoutsRes.data ?? []).map((s) => ({
-      id: s.id,
-      senderName: s.sender_name,
-      city: s.city,
-      message: s.message,
-      createdAt: s.created_at,
-    })),
-    updatedAt: p.updated_at || new Date().toISOString(),
-  };
+  return hydrateBandStateFromRaw({
+    profile: profileRes.data as Record<string, unknown>,
+    siteSections: !sectionsRes.error && Array.isArray(sectionsRes.data)
+      ? (sectionsRes.data as Array<Record<string, unknown>>)
+      : undefined,
+    members: (membersRes.data ?? []) as Array<Record<string, unknown>>,
+    tracks: (tracksRes.data ?? []) as Array<Record<string, unknown>>,
+    tours: (toursRes.data ?? []) as Array<Record<string, unknown>>,
+    gallery: (galleryRes.data ?? []) as Array<Record<string, unknown>>,
+    socialChannels: (channelsRes.data ?? []) as Array<Record<string, unknown>>,
+    socialPosts: (postsRes.data ?? []) as Array<Record<string, unknown>>,
+    shoutouts: (shoutoutsRes.data ?? []) as Array<Record<string, unknown>>,
+  });
 }
 
 // Public interactions
@@ -264,21 +335,7 @@ export async function sbDecrementPostLike(
       return data !== false;
     }
   }
-  const { error: decErr } = await client.rpc('decrement_post_like', { post_id: postId });
-  if (!decErr) return true;
-
-  // Fallback if decrement RPC is not yet created
-  const { data: current } = await client
-    .from('social_posts')
-    .select('likes')
-    .eq('id', postId)
-    .maybeSingle();
-  if (current && typeof current.likes === 'number') {
-    await client
-      .from('social_posts')
-      .update({ likes: Math.max(0, current.likes - 1) })
-      .eq('id', postId);
-  }
+  await client.rpc('decrement_post_like', { post_id: postId });
   return true;
 }
 
@@ -315,7 +372,7 @@ function isLikelySecretApiKey(key: string): boolean {
   return false;
 }
 
-// Admin Auth
+// Admin Auth (Zero direct table queries to admin_users; verified strictly via authenticated RPC)
 export async function sbAdminLogin(
   loginInput: string,
   password: string
@@ -330,15 +387,9 @@ export async function sbAdminLogin(
     throw new Error('Koneksi database belum dikonfigurasi.');
   }
 
-  let resolvedEmail = loginInput.trim();
+  const resolvedEmail = loginInput.trim();
   if (!resolvedEmail.includes('@')) {
-    const { data: rpcEmail, error: rpcErr } = await client.rpc('resolve_admin_login_email', {
-      login_input: resolvedEmail,
-    });
-    if (rpcErr || !rpcEmail) {
-      throw new Error('Username atau email admin tidak ditemukan.');
-    }
-    resolvedEmail = String(rpcEmail).trim();
+    throw new Error('Masukkan alamat email admin Anda untuk login aman.');
   }
 
   const { data, error } = await client.auth.signInWithPassword({
@@ -352,24 +403,24 @@ export async function sbAdminLogin(
         'Konfigurasi kunci API publik masih menggunakan Secret key. Ganti dengan Publishable / anon public key, lalu Redeploy.'
       );
     }
-    throw new Error(rawMsg || 'Email/username atau kata sandi admin tidak sesuai.');
+    throw new Error(rawMsg || 'Email atau kata sandi admin tidak sesuai.');
   }
 
-  const { data: adminRow, error: adminErr } = await client
-    .from('admin_users')
-    .select('email, username, full_name, can_edit')
-    .ilike('email', data.user.email)
-    .maybeSingle();
+  const { data: rpcAdmin, error: adminErr } = await client.rpc('get_my_admin_profile');
+  const adminRow = (Array.isArray(rpcAdmin) ? rpcAdmin[0] : rpcAdmin) as
+    | { is_admin?: boolean; username?: string | null; full_name?: string | null }
+    | null
+    | undefined;
 
-  if (adminErr || !adminRow) {
+  if (adminErr || !adminRow?.is_admin) {
     await client.auth.signOut();
     throw new Error('Akun ini belum terdaftar sebagai admin yang memiliki akses.');
   }
 
   return {
     email: data.user.email,
-    username: (adminRow.username as string | null) ?? data.user.email.split('@')[0],
-    fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
+    username: adminRow.username ?? data.user.email.split('@')[0],
+    fullName: adminRow.full_name ?? 'Admin Rasmalas',
     token: data.session.access_token,
   };
 }
@@ -390,20 +441,21 @@ export async function sbAdminSessionCheck(): Promise<{
   if (!session?.user?.email) {
     return { authenticated: false, email: null, username: null, fullName: null, token: null };
   }
-  const { data: adminRow } = await client
-    .from('admin_users')
-    .select('email, username, full_name')
-    .ilike('email', session.user.email)
-    .maybeSingle();
 
-  if (!adminRow) {
+  const { data: rpcAdmin, error } = await client.rpc('get_my_admin_profile');
+  const adminRow = (Array.isArray(rpcAdmin) ? rpcAdmin[0] : rpcAdmin) as
+    | { is_admin?: boolean; username?: string | null; full_name?: string | null }
+    | null
+    | undefined;
+
+  if (error || !adminRow?.is_admin) {
     return { authenticated: false, email: null, username: null, fullName: null, token: null };
   }
   return {
     authenticated: true,
     email: session.user.email,
-    username: (adminRow.username as string | null) ?? session.user.email.split('@')[0],
-    fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
+    username: adminRow.username ?? session.user.email.split('@')[0],
+    fullName: adminRow.full_name ?? 'Admin Rasmalas',
     token: session.access_token,
   };
 }
@@ -499,18 +551,9 @@ export async function sbSendPasswordResetEmail(
   const client = getBrowserSupabaseClient();
   if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
-  let targetEmail = loginOrEmail.trim();
-  if (!targetEmail) {
-    throw new Error('Masukkan email atau username admin terlebih dahulu.');
-  }
-  if (!targetEmail.includes('@')) {
-    const { data: rpcEmail, error: rpcErr } = await client.rpc('resolve_admin_login_email', {
-      login_input: targetEmail,
-    });
-    if (rpcErr || !rpcEmail) {
-      throw new Error('Username admin tidak ditemukan.');
-    }
-    targetEmail = String(rpcEmail).trim();
+  const targetEmail = loginOrEmail.trim();
+  if (!targetEmail || !targetEmail.includes('@')) {
+    throw new Error('Masukkan alamat email admin yang valid terlebih dahulu.');
   }
 
   const { error } = await client.auth.resetPasswordForEmail(targetEmail, {

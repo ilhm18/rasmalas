@@ -79,20 +79,32 @@ export default function App() {
   const userChangedTrackRef = useRef(false);
   const cleanupAutoplayUnlockRef = useRef<(() => void) | null>(null);
 
-  // Verify stored admin session on mount / mode detection
+  // Verify stored admin session only when a local token exists, admin view is open, or password recovery is active
   useEffect(() => {
     if (loading) return;
+    const isRecoveryHash =
+      typeof window !== 'undefined' && window.location.hash.includes('type=recovery');
+    const storedToken =
+      typeof window !== 'undefined' ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+
+    if (viewMode !== 'admin' && !isRecoveryHash && !storedToken) {
+      return;
+    }
+
+    let cancelled = false;
     async function checkSession() {
       try {
         if (backendMode === 'supabase') {
           const sbSession = await sbAdminSessionCheck();
+          if (cancelled) return;
           if (sbSession.authenticated && sbSession.email && sbSession.token) {
             setIsAuthenticated(true);
             setAdminEmail(sbSession.email);
             setAdminUsername(sbSession.username);
             setAdminFullName(sbSession.fullName);
+            window.localStorage.setItem(TOKEN_STORAGE_KEY, sbSession.token);
             setAuthToken(sbSession.token);
-            if (window.location.hash.includes('type=recovery')) {
+            if (isRecoveryHash) {
               setViewMode('admin');
               setInitialAdminSection('settings');
               window.history.replaceState(null, '', window.location.pathname);
@@ -116,16 +128,17 @@ export default function App() {
         }
 
         const headers: Record<string, string> = {};
-        if (authToken) headers.Authorization = `Bearer ${authToken}`;
+        if (storedToken) headers.Authorization = `Bearer ${storedToken}`;
         const res = await fetch('/api/auth/me', { headers });
         const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) return;
+        if (!contentType.includes('application/json') || cancelled) return;
         const data = (await res.json()) as {
           authenticated: boolean;
           email: string | null;
           username?: string | null;
           fullName?: string | null;
         };
+        if (cancelled) return;
         if (data.authenticated && data.email) {
           setIsAuthenticated(true);
           setAdminEmail(data.email);
@@ -144,7 +157,10 @@ export default function App() {
       }
     }
     void checkSession();
-  }, [authToken, backendMode, loading]);
+    return () => {
+      cancelled = true;
+    };
+  }, [backendMode, loading, viewMode]);
 
   // Prioritize "Rasmalas - Uyee" at the top of the playlist if present
   const tracks = useMemo(() => {

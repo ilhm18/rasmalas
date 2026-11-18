@@ -266,7 +266,112 @@ AS $$
   );
 $$;
 
--- Izinkan login memakai username atau email di halaman Login Admin
+-- 10. Pencatat Like per Perangkat (Hanya diakses lewat RPC SECURITY DEFINER)
+CREATE TABLE IF NOT EXISTS public.social_post_likes (
+  post_id TEXT NOT NULL REFERENCES public.social_posts(id) ON DELETE CASCADE,
+  device_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (post_id, device_id)
+);
+
+-- ============================================================================
+-- FUNGSI OTORISASI ADMIN & RPC PUBLIK
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.current_user_email()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT lower(
+    COALESCE(
+      NULLIF(auth.jwt() ->> 'email', ''),
+      (SELECT email FROM auth.users WHERE id = auth.uid()),
+      ''
+    )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_rasmalas_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT auth.uid() IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM public.admin_users
+    WHERE lower(email) = public.current_user_email()
+      AND role IN ('admin', 'editor')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_admin_edit()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT auth.uid() IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM public.admin_users
+    WHERE lower(email) = public.current_user_email()
+      AND can_edit = true
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_admin_delete()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT auth.uid() IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM public.admin_users
+    WHERE lower(email) = public.current_user_email()
+      AND can_delete = true
+  );
+$$;
+
+-- Verifikasi sesi admin milik user yang sedang login (tanpa membuka tabel admin_users)
+CREATE OR REPLACE FUNCTION public.get_my_admin_profile()
+RETURNS TABLE(
+  is_admin BOOLEAN,
+  email TEXT,
+  username TEXT,
+  full_name TEXT,
+  role TEXT,
+  can_edit BOOLEAN,
+  can_delete BOOLEAN
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT
+    true AS is_admin,
+    a.email,
+    a.username,
+    a.full_name,
+    a.role,
+    a.can_edit,
+    a.can_delete
+  FROM public.admin_users a
+  WHERE auth.uid() IS NOT NULL
+    AND lower(a.email) = public.current_user_email()
+    AND a.role IN ('admin', 'editor')
+    AND (a.can_edit = true OR a.can_delete = true)
+  LIMIT 1;
+$$;
+
+-- Hanya untuk service_role di server backend (mencegah enumerasi email admin dari browser)
 CREATE OR REPLACE FUNCTION public.resolve_admin_login_email(login_input TEXT)
 RETURNS TEXT
 LANGUAGE sql
@@ -298,7 +403,7 @@ DECLARE
   v_clean_name TEXT := NULLIF(trim(COALESCE(p_full_name, '')), '');
   v_next_email TEXT := COALESCE(NULLIF(lower(trim(COALESCE(p_email, ''))), ''), v_current_email);
 BEGIN
-  IF v_current_email = '' OR NOT public.is_rasmalas_admin() THEN
+  IF auth.uid() IS NULL OR v_current_email = '' OR NOT public.is_rasmalas_admin() THEN
     RAISE EXCEPTION 'Akses ditolak. Anda harus masuk sebagai admin.';
   END IF;
 
@@ -323,6 +428,55 @@ BEGIN
   WHERE lower(a.email) = v_next_email
   LIMIT 1;
 END;
+$$;
+
+-- Satu endpoint RPC publik terpadu (menyembunyikan daftar tabel mentah di Network browser)
+CREATE OR REPLACE FUNCTION public.get_public_band_state()
+RETURNS JSONB
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT jsonb_build_object(
+    'profile', (SELECT to_jsonb(bp) FROM public.band_profile bp WHERE bp.id = 'rasmalas' LIMIT 1),
+    'siteSections', COALESCE((
+      SELECT jsonb_agg(to_jsonb(ss) ORDER BY ss.sort_order ASC, ss.created_at ASC)
+      FROM public.site_sections ss
+    ), '[]'::jsonb),
+    'members', COALESCE((
+      SELECT jsonb_agg(to_jsonb(bm) ORDER BY bm.sort_order ASC)
+      FROM public.band_members bm
+    ), '[]'::jsonb),
+    'tracks', COALESCE((
+      SELECT jsonb_agg(to_jsonb(tr) ORDER BY tr.sort_order ASC, tr.created_at DESC)
+      FROM public.tracks tr
+    ), '[]'::jsonb),
+    'tours', COALESCE((
+      SELECT jsonb_agg(to_jsonb(tu) ORDER BY tu.date ASC)
+      FROM public.tours tu
+    ), '[]'::jsonb),
+    'gallery', COALESCE((
+      SELECT jsonb_agg(to_jsonb(gp) ORDER BY gp.featured DESC, gp.created_at DESC)
+      FROM public.gallery_photos gp
+    ), '[]'::jsonb),
+    'socialChannels', COALESCE((
+      SELECT jsonb_agg(to_jsonb(sc) ORDER BY sc.sort_order ASC)
+      FROM public.social_channels sc
+    ), '[]'::jsonb),
+    'socialPosts', COALESCE((
+      SELECT jsonb_agg(to_jsonb(sp) ORDER BY sp.created_at DESC)
+      FROM public.social_posts sp
+    ), '[]'::jsonb),
+    'shoutouts', COALESCE((
+      SELECT jsonb_agg(to_jsonb(sh))
+      FROM (
+        SELECT * FROM public.fan_shoutouts
+        ORDER BY created_at DESC
+        LIMIT 30
+      ) sh
+    ), '[]'::jsonb)
+  );
 $$;
 
 -- Fungsi RPC aman untuk interaksi publik (tanpa membuka UPDATE langsung ke publik)
@@ -353,10 +507,80 @@ AS $$
   UPDATE public.social_posts SET likes = likes + 1 WHERE id = post_id;
 $$;
 
+CREATE OR REPLACE FUNCTION public.decrement_post_like(post_id TEXT)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.social_posts SET likes = GREATEST(0, COALESCE(likes, 0) - 1) WHERE id = post_id;
+$$;
+
+CREATE OR REPLACE FUNCTION public.like_social_post_once(p_post_id TEXT, p_device_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_inserted INT;
+BEGIN
+  IF length(trim(COALESCE(p_device_id, ''))) < 4 THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO public.social_post_likes (post_id, device_id)
+  VALUES (p_post_id, left(trim(p_device_id), 120))
+  ON CONFLICT (post_id, device_id) DO NOTHING;
+
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+
+  IF v_inserted > 0 THEN
+    UPDATE public.social_posts
+    SET likes = COALESCE(likes, 0) + 1
+    WHERE id = p_post_id;
+    RETURN true;
+  END IF;
+
+  RETURN false;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.unlike_social_post_once(p_post_id TEXT, p_device_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_deleted INT;
+BEGIN
+  IF length(trim(COALESCE(p_device_id, ''))) < 4 THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM public.social_post_likes
+  WHERE post_id = p_post_id
+    AND device_id = left(trim(p_device_id), 120);
+
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+  IF v_deleted > 0 THEN
+    UPDATE public.social_posts
+    SET likes = GREATEST(0, COALESCE(likes, 0) - 1)
+    WHERE id = p_post_id;
+    RETURN true;
+  END IF;
+
+  RETURN false;
+END;
+$$;
+
 -- Otomatis ubah status jadwal menjadi 'Selesai' jika tanggal sudah lewat (WIB / Asia/Jakarta)
 CREATE OR REPLACE FUNCTION public.sync_tour_status_before_write()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
   v_today TEXT := to_char((now() AT TIME ZONE 'Asia/Jakarta')::date, 'YYYY-MM-DD');
@@ -395,10 +619,14 @@ END;
 $$;
 
 -- ============================================================================
--- HAK AKSES SCHEMA & TABEL (GRANTS) UNTUK ANON & AUTHENTICATED
+-- HAK AKSES SCHEMA & TABEL (GRANTS) — ZERO DIRECT ACCESS KE ADMIN_USERS
 -- ============================================================================
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+-- Tutup total akses tabel admin_users & social_post_likes dari PostgREST (anon & authenticated)
+REVOKE ALL ON TABLE public.admin_users FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.social_post_likes FROM PUBLIC, anon, authenticated;
 
 GRANT SELECT ON
   public.band_profile,
@@ -415,7 +643,6 @@ TO anon, authenticated;
 GRANT INSERT ON public.fan_shoutouts TO anon, authenticated;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  public.admin_users,
   public.band_profile,
   public.site_sections,
   public.band_members,
@@ -427,27 +654,49 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   public.fan_shoutouts
 TO authenticated;
 
+-- Cabut izin publik atas fungsi sensitif enumerasi email admin
+REVOKE ALL ON FUNCTION public.resolve_admin_login_email(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_admin_login_email(TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION
+  public.current_user_email(),
+  public.is_rasmalas_admin(),
+  public.can_admin_edit(),
+  public.can_admin_delete()
+FROM PUBLIC, anon;
+
 GRANT EXECUTE ON FUNCTION
   public.current_user_email(),
   public.is_rasmalas_admin(),
   public.can_admin_edit(),
-  public.can_admin_delete(),
-  public.resolve_admin_login_email(TEXT),
+  public.can_admin_delete()
+TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_my_admin_profile() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_admin_profile() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.update_own_admin_profile(TEXT, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_own_admin_profile(TEXT, TEXT, TEXT) TO authenticated, service_role;
+
+GRANT EXECUTE ON FUNCTION
+  public.get_public_band_state(),
   public.increment_track_play(TEXT),
   public.increment_tour_rsvp(TEXT),
   public.increment_post_like(TEXT),
+  public.decrement_post_like(TEXT),
+  public.like_social_post_once(TEXT, TEXT),
+  public.unlike_social_post_once(TEXT, TEXT),
   public.sync_past_tour_statuses()
 TO anon, authenticated;
 
-GRANT EXECUTE ON FUNCTION
-  public.update_own_admin_profile(TEXT, TEXT, TEXT)
-TO authenticated;
-
 -- ============================================================================
--- AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN TAMBAH / EDIT / HAPUS ADMIN
+-- AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN KETAT
 -- ============================================================================
 
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_users FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.social_post_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.social_post_likes FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.band_profile ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_sections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.band_members ENABLE ROW LEVEL SECURITY;
@@ -458,19 +707,13 @@ ALTER TABLE public.social_channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.social_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fan_shoutouts ENABLE ROW LEVEL SECURITY;
 
--- Kebijakan tabel admin_users
+-- Hapus seluruh policy terbuka pada admin_users & social_post_likes (hanya service_role / SECURITY DEFINER)
 DROP POLICY IF EXISTS "Admin dapat melihat daftar admin sendiri" ON public.admin_users;
-CREATE POLICY "Admin dapat melihat daftar admin sendiri"
-  ON public.admin_users FOR SELECT
-  TO authenticated
-  USING (lower(email) = public.current_user_email() OR public.is_rasmalas_admin());
-
 DROP POLICY IF EXISTS "Admin utama kelola admin_users" ON public.admin_users;
-CREATE POLICY "Admin utama kelola admin_users"
-  ON public.admin_users FOR ALL
-  TO authenticated
-  USING (public.is_rasmalas_admin())
-  WITH CHECK (public.is_rasmalas_admin());
+DROP POLICY IF EXISTS "Public read admin_users" ON public.admin_users;
+DROP POLICY IF EXISTS "Public read social_post_likes" ON public.social_post_likes;
+DROP POLICY IF EXISTS "Public insert social_post_likes" ON public.social_post_likes;
+DROP POLICY IF EXISTS "Public delete social_post_likes" ON public.social_post_likes;
 
 -- band_profile
 DROP POLICY IF EXISTS "Publik baca profil band" ON public.band_profile;
@@ -502,7 +745,8 @@ CREATE POLICY "Admin edit personel" ON public.band_members FOR UPDATE TO authent
 DROP POLICY IF EXISTS "Admin hapus personel" ON public.band_members;
 CREATE POLICY "Admin hapus personel" ON public.band_members FOR DELETE TO authenticated USING (public.can_admin_delete());
 
--- tracks
+-- tracks (Cabut policy update publik jika pernah dibuat)
+DROP POLICY IF EXISTS "Public update tracks" ON public.tracks;
 DROP POLICY IF EXISTS "Publik baca musik" ON public.tracks;
 CREATE POLICY "Publik baca musik" ON public.tracks FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin tambah musik" ON public.tracks;
@@ -552,11 +796,16 @@ CREATE POLICY "Admin edit postingan sosial" ON public.social_posts FOR UPDATE TO
 DROP POLICY IF EXISTS "Admin hapus postingan sosial" ON public.social_posts;
 CREATE POLICY "Admin hapus postingan sosial" ON public.social_posts FOR DELETE TO authenticated USING (public.can_admin_delete());
 
--- fan_shoutouts
+-- fan_shoutouts (Validasi panjang input pada INSERT publik)
 DROP POLICY IF EXISTS "Publik baca sapaan" ON public.fan_shoutouts;
 CREATE POLICY "Publik baca sapaan" ON public.fan_shoutouts FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Publik kirim sapaan" ON public.fan_shoutouts;
-CREATE POLICY "Publik kirim sapaan" ON public.fan_shoutouts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Publik kirim sapaan" ON public.fan_shoutouts FOR INSERT
+  WITH CHECK (
+    char_length(trim(sender_name)) BETWEEN 1 AND 50
+    AND char_length(trim(message)) BETWEEN 1 AND 240
+    AND char_length(COALESCE(city, '')) <= 40
+  );
 DROP POLICY IF EXISTS "Admin edit sapaan" ON public.fan_shoutouts;
 CREATE POLICY "Admin edit sapaan" ON public.fan_shoutouts FOR UPDATE TO authenticated USING (public.can_admin_edit()) WITH CHECK (public.can_admin_edit());
 DROP POLICY IF EXISTS "Admin hapus sapaan" ON public.fan_shoutouts;

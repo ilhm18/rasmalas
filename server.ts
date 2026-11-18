@@ -64,8 +64,30 @@ dotenv.config();
 const PORT = Number(process.env.PORT || 3000);
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const SESSION_SECRET =
-  process.env.SESSION_SECRET || 'rasmalas-analog-dub-session-key-2026';
+function resolveSessionSecret(): string {
+  const envSecret = (process.env.SESSION_SECRET || '').trim();
+  if (envSecret && envSecret !== 'change-this-session-secret-in-production') {
+    return envSecret;
+  }
+  const secretDir = path.resolve(process.cwd(), 'data');
+  const secretFile = path.join(secretDir, '.session-secret');
+  try {
+    if (fs.existsSync(secretFile)) {
+      const existing = fs.readFileSync(secretFile, 'utf-8').trim();
+      if (existing.length >= 32) return existing;
+    }
+    if (!fs.existsSync(secretDir)) {
+      fs.mkdirSync(secretDir, { recursive: true });
+    }
+    const generated = crypto.randomBytes(48).toString('hex');
+    fs.writeFileSync(secretFile, generated, { encoding: 'utf-8', mode: 0o600 });
+    return generated;
+  } catch {
+    return crypto.randomBytes(48).toString('hex');
+  }
+}
+
+const SESSION_SECRET = resolveSessionSecret();
 
 const COOKIE_NAME = 'senja_admin_token';
 
@@ -158,6 +180,19 @@ async function startServer(): Promise<void> {
   await initStore();
 
   const app = express();
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
+  app.use(['/api/auth', '/api/admin'], (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    next();
+  });
   app.use(express.json({ limit: '10mb' }));
 
   const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
@@ -517,24 +552,16 @@ async function startServer(): Promise<void> {
 
     if (isSupabaseConfigured()) {
       const sbAuth = await authenticateSupabaseAdmin(loginInput, password);
-      if (sbAuth.ok && sbAuth.email) {
-        sbAccessToken = sbAuth.accessToken;
-        authenticatedEmail = sbAuth.email;
-        username = sbAuth.username || username;
-        fullName = sbAuth.fullName || fullName;
-      } else {
-        const localCheck = verifyLocalAdminLogin(loginInput, password);
-        if (localCheck.ok) {
-          authenticatedEmail = localCheck.email;
-          username = localCheck.username;
-          fullName = localCheck.fullName;
-        } else {
-          res.status(401).json({
-            error: sbAuth.error || 'Email/username atau kata sandi admin tidak sesuai.',
-          });
-          return;
-        }
+      if (!sbAuth.ok || !sbAuth.email) {
+        res.status(401).json({
+          error: sbAuth.error || 'Email/username atau kata sandi admin tidak sesuai.',
+        });
+        return;
       }
+      sbAccessToken = sbAuth.accessToken;
+      authenticatedEmail = sbAuth.email;
+      username = sbAuth.username || username;
+      fullName = sbAuth.fullName || fullName;
     } else {
       const localCheck = verifyLocalAdminLogin(loginInput, password);
       if (!localCheck.ok) {
@@ -582,12 +609,12 @@ async function startServer(): Promise<void> {
     if (sbToken && isSupabaseConfigured()) {
       const sbClient = getSupabaseAdminClient(sbToken);
       if (sbClient) {
-        const { data: row } = await sbClient
-          .from('admin_users')
-          .select('email, username, full_name')
-          .ilike('email', verified.email)
-          .maybeSingle();
-        if (row) {
+        const { data: rpcRow } = await sbClient.rpc('get_my_admin_profile');
+        const row = (Array.isArray(rpcRow) ? rpcRow[0] : rpcRow) as
+          | { is_admin?: boolean; email?: string | null; username?: string | null; full_name?: string | null }
+          | null
+          | undefined;
+        if (row?.is_admin) {
           res.json({
             authenticated: true,
             email: row.email || verified.email,

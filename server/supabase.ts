@@ -81,7 +81,11 @@ export async function authenticateSupabaseAdmin(
 
   let resolvedEmail = loginInput.trim();
   if (!resolvedEmail.includes('@')) {
-    const { data: rpcEmail, error: rpcErr } = await publicClient.rpc(
+    const svcClient = hasServiceRoleKey() ? getSupabaseAdminClient() : null;
+    if (!svcClient) {
+      return { ok: false, error: 'Masukkan alamat email admin untuk login.' };
+    }
+    const { data: rpcEmail, error: rpcErr } = await svcClient.rpc(
       'resolve_admin_login_email',
       { login_input: resolvedEmail }
     );
@@ -109,35 +113,63 @@ export async function authenticateSupabaseAdmin(
     return { ok: false, error: 'Gagal membuat sesi klien Supabase.' };
   }
 
-  const { data: adminRow, error: adminErr } = await authedClient
-    .from('admin_users')
-    .select('email, username, full_name, role, can_edit, can_delete')
-    .ilike('email', authData.user.email)
-    .maybeSingle();
+  // Prefer secure RPC get_my_admin_profile; fallback to service-role query if RPC not yet installed
+  const { data: rpcAdmin, error: rpcAdminErr } = await authedClient.rpc('get_my_admin_profile');
+  const rpcRow = (Array.isArray(rpcAdmin) ? rpcAdmin[0] : rpcAdmin) as
+    | {
+        is_admin?: boolean;
+        username?: string | null;
+        full_name?: string | null;
+        can_edit?: boolean;
+        can_delete?: boolean;
+      }
+    | null
+    | undefined;
 
-  if (adminErr) {
+  if (!rpcAdminErr && rpcRow) {
+    if (!rpcRow.is_admin || (!rpcRow.can_edit && !rpcRow.can_delete)) {
+      return {
+        ok: false,
+        error: 'Email Anda belum terdaftar sebagai admin yang memiliki izin edit/hapus.',
+      };
+    }
     return {
-      ok: false,
-      error:
-        'Akun berhasil masuk, tetapi tabel admin_users belum siap atau akses ditolak. Jalankan SQL admin Supabase terlebih dahulu.',
+      ok: true,
+      accessToken,
+      email: authData.user.email,
+      username: rpcRow.username ?? authData.user.email.split('@')[0],
+      fullName: rpcRow.full_name ?? 'Admin Rasmalas',
+      canEdit: Boolean(rpcRow.can_edit),
+      canDelete: Boolean(rpcRow.can_delete),
     };
   }
 
-  if (!adminRow || (!adminRow.can_edit && !adminRow.can_delete)) {
-    return {
-      ok: false,
-      error: 'Email Anda belum terdaftar di tabel admin_users dengan izin edit/hapus.',
-    };
+  if (hasServiceRoleKey()) {
+    const svcClient = getSupabaseAdminClient();
+    if (svcClient) {
+      const { data: adminRow, error: adminErr } = await svcClient
+        .from('admin_users')
+        .select('email, username, full_name, role, can_edit, can_delete')
+        .ilike('email', authData.user.email)
+        .maybeSingle();
+
+      if (!adminErr && adminRow && (adminRow.can_edit || adminRow.can_delete)) {
+        return {
+          ok: true,
+          accessToken,
+          email: authData.user.email,
+          username: (adminRow.username as string | null) ?? authData.user.email.split('@')[0],
+          fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
+          canEdit: Boolean(adminRow.can_edit),
+          canDelete: Boolean(adminRow.can_delete),
+        };
+      }
+    }
   }
 
   return {
-    ok: true,
-    accessToken,
-    email: authData.user.email,
-    username: (adminRow.username as string | null) ?? authData.user.email.split('@')[0],
-    fullName: (adminRow.full_name as string | null) ?? 'Admin Rasmalas',
-    canEdit: Boolean(adminRow.can_edit),
-    canDelete: Boolean(adminRow.can_delete),
+    ok: false,
+    error: 'Akun Anda belum memiliki izin akses admin atau skrip SQL keamanan belum dijalankan.',
   };
 }
 

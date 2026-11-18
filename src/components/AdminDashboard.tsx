@@ -1594,11 +1594,11 @@ export function AdminDashboard({
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1.5">
                     <label htmlFor="dash-email" className="block text-xs font-medium text-[#D6CFC2]">
-                      Email atau Username Admin
+                      {backendMode === 'supabase' ? 'Email Admin' : 'Email atau Username Admin'}
                     </label>
                     <input
                       id="dash-email"
-                      type="text"
+                      type={backendMode === 'supabase' ? 'email' : 'text'}
                       required
                       autoComplete="username"
                       value={emailInput}
@@ -1662,11 +1662,11 @@ export function AdminDashboard({
                       htmlFor="dash-reset-login"
                       className="block text-xs font-medium text-[#D6CFC2]"
                     >
-                      Email atau Username Admin untuk Reset Kata Sandi
+                      Email Admin untuk Reset Kata Sandi
                     </label>
                     <input
                       id="dash-reset-login"
-                      type="text"
+                      type="email"
                       required
                       value={resetLoginInput}
                       onChange={(e) => setResetLoginInput(e.target.value)}
@@ -1827,7 +1827,7 @@ export function AdminDashboard({
               {adminFullName || adminUsername || 'Admin'}
             </p>
             <p className="text-[11px] text-[#A8A092] truncate">
-              {adminEmail || 'admin@rasmalas.id'}
+              {adminEmail || '-'}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-1.5">

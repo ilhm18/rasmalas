@@ -34,6 +34,14 @@ export default defineConfig(({command}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    esbuild: {
+      drop: command === 'build' ? ['console', 'debugger'] : [],
+    },
+    build: {
+      sourcemap: false,
+      minify: 'esbuild',
+      cssMinify: true,
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
