@@ -1,4 +1,5 @@
 import { ArrowUpRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import type { BandProfile, SiteSection } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -6,6 +7,8 @@ interface BandProfileSectionProps {
   profile: BandProfile;
   sectionMeta?: SiteSection;
 }
+
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 function normalizeInstagramUrl(raw?: string): string | null {
   if (!raw) return null;
@@ -32,11 +35,17 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
   return (
     <section
       id={sectionMeta?.slug || 'profil'}
-      className="border-b border-[#2A3024] py-14 sm:py-16 lg:py-20"
+      className="border-b border-[#2A3024] py-14 sm:py-16 lg:py-20 overflow-hidden"
     >
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
-          <div className="lg:col-span-5">
+          <motion.div
+            initial={{ opacity: 0, x: -32, scale: 0.96 }}
+            whileInView={{ opacity: 1, x: 0, scale: 1 }}
+            viewport={{ once: false, amount: 0.25 }}
+            transition={{ duration: 0.65, ease: EASE_OUT_EXPO }}
+            className="lg:col-span-5"
+          >
             <div className="relative overflow-hidden rounded-2xl border border-[#2A3024] dub-surface shadow-xl aspect-[4/3] group">
               <div className="h-[2px] w-full reggae-hairline absolute top-0 inset-x-0 z-10" aria-hidden="true" />
               <ImageWithFallback
@@ -46,9 +55,15 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
             </div>
-          </div>
+          </motion.div>
 
-          <div className="lg:col-span-7 space-y-5">
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, amount: 0.25 }}
+            transition={{ duration: 0.65, delay: 0.1, ease: EASE_OUT_EXPO }}
+            className="lg:col-span-7 space-y-5"
+          >
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {profile.profileSectionTitle?.trim() ||
                 sectionMeta?.title ||
@@ -65,11 +80,17 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
               <span aria-hidden="true">·</span>
               <span>Kontak Booking: {profile.bookingEmail}</span>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         <div className="mt-12 pt-10 border-t border-[#2A3024]">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, amount: 0.3 }}
+            transition={{ duration: 0.55, ease: EASE_OUT_EXPO }}
+            className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-6"
+          >
             <h3 className="font-display text-xl font-bold text-[#F5F2EB]">
               Formasi Panggung Utama
             </h3>
@@ -78,15 +99,24 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
                 sectionMeta?.subtitle ||
                 'Instrumen live tanpa backing track digital'}
             </p>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-            {profile.members.map((member) => {
+            {profile.members.map((member, idx) => {
               const igHref = normalizeInstagramUrl(member.instagramUrl);
               const igHandle = formatInstagramHandle(member.instagramUrl);
               return (
-                <div
+                <motion.div
                   key={member.id}
+                  initial={{ opacity: 0, y: 26 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: false, amount: 0.2 }}
+                  transition={{
+                    duration: 0.55,
+                    delay: idx * 0.08,
+                    ease: EASE_OUT_EXPO,
+                  }}
+                  whileHover={{ y: -5, scale: 1.01 }}
                   className="rounded-xl border border-[#2A3024] dub-surface dub-card-hover p-5 sm:p-6 flex flex-col justify-between gap-4"
                 >
                   <div className="space-y-2">
@@ -107,7 +137,7 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
                         href={igHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] transition-colors min-h-[32px]"
+                        className="group/ig inline-flex items-center gap-2 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] transition-colors min-h-[32px]"
                       >
                         <svg
                           viewBox="0 0 24 24"
@@ -124,11 +154,14 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
                           <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
                         </svg>
                         <span className="truncate">{igHandle}</span>
-                        <ArrowUpRight className="w-3.5 h-3.5 shrink-0 opacity-75" aria-hidden="true" />
+                        <ArrowUpRight
+                          className="w-3.5 h-3.5 shrink-0 opacity-75 transition-transform duration-200 group-hover/ig:translate-x-0.5 group-hover/ig:-translate-y-0.5"
+                          aria-hidden="true"
+                        />
                       </a>
                     </div>
                   )}
-                </div>
+                </motion.div>
               );
             })}
           </div>

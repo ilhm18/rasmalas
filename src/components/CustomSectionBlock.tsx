@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import { resolveAssetUrl } from '../shared/assetUrl';
 import type { SiteSection } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
@@ -6,6 +7,8 @@ import { ImageWithFallback } from './ImageWithFallback';
 interface CustomSectionBlockProps {
   section: SiteSection;
 }
+
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export function CustomSectionBlock({ section }: CustomSectionBlockProps) {
   const hasMedia = Boolean(section.imageUrl && section.imageUrl.trim());
@@ -17,7 +20,7 @@ export function CustomSectionBlock({ section }: CustomSectionBlockProps) {
   return (
     <section
       id={section.slug}
-      className="border-b border-[#2A3024] py-16 lg:py-20"
+      className="border-b border-[#2A3024] py-16 lg:py-20 overflow-hidden"
     >
       <div className="mx-auto max-w-[1200px] px-6">
         <div
@@ -27,7 +30,13 @@ export function CustomSectionBlock({ section }: CustomSectionBlockProps) {
               : 'max-w-3xl space-y-5'
           }
         >
-          <div className={hasMedia ? 'lg:col-span-7 space-y-5' : 'space-y-5'}>
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, amount: 0.25 }}
+            transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+            className={hasMedia ? 'lg:col-span-7 space-y-5' : 'space-y-5'}
+          >
             {section.kicker && (
               <p className="text-xs font-medium tracking-wide text-[#EAB308]">
                 {section.kicker}
@@ -63,11 +72,17 @@ export function CustomSectionBlock({ section }: CustomSectionBlockProps) {
                 </a>
               </div>
             )}
-          </div>
+          </motion.div>
 
           {hasMedia && section.imageUrl && (
-            <div className="lg:col-span-5">
-              <div className="overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm aspect-[4/3]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              whileInView={{ opacity: 1, scale: 1, y: 0 }}
+              viewport={{ once: false, amount: 0.25 }}
+              transition={{ duration: 0.65, delay: 0.1, ease: EASE_OUT_EXPO }}
+              className="lg:col-span-5"
+            >
+              <div className="overflow-hidden rounded-2xl border border-[#2A3024] dub-surface aspect-[4/3] shadow-xl">
                 {isVideo ? (
                   <video
                     src={resolveAssetUrl(section.imageUrl)}
@@ -85,7 +100,7 @@ export function CustomSectionBlock({ section }: CustomSectionBlockProps) {
                   />
                 )}
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>

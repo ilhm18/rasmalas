@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Film, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { resolveAssetUrl } from '../shared/assetUrl';
 import type { GalleryCategory, GalleryPhoto, SiteSection } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
@@ -10,6 +11,8 @@ interface GallerySectionProps {
 }
 
 type GalleryFilter = 'Semua' | GalleryCategory;
+
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 function isVideoItem(photo: GalleryPhoto): boolean {
   if (photo.mediaType === 'video') return true;
@@ -85,10 +88,16 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
   return (
     <section
       id={sectionMeta?.slug || 'galeri'}
-      className="border-b border-[#2A2620] py-14 sm:py-16 lg:py-20"
+      className="border-b border-[#2A2620] py-14 sm:py-16 lg:py-20 overflow-hidden"
     >
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-8 sm:mb-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: false, amount: 0.25 }}
+          transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+          className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-8 sm:mb-10"
+        >
           <div>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Arsip Panggung, Studio & Backstage'}
@@ -119,7 +128,7 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
               </button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {filtered.length === 0 ? (
           <div className="rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm p-10 text-center text-sm text-[#A8A092]">
@@ -132,9 +141,18 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
               {filtered.map((photo, globalIndex) => {
                 const isVideo = isVideoItem(photo);
                 return (
-                  <button
+                  <motion.button
                     key={photo.id}
                     type="button"
+                    initial={{ opacity: 0, y: 24, scale: 0.96 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: false, amount: 0.2 }}
+                    transition={{
+                      duration: 0.5,
+                      delay: Math.min(globalIndex * 0.06, 0.3),
+                      ease: EASE_OUT_EXPO,
+                    }}
+                    whileHover={{ y: -4 }}
                     onClick={() => setActiveIndex(globalIndex)}
                     className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAB308]"
                   >
@@ -146,14 +164,14 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
                         loop
                         autoPlay
                         preload="metadata"
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
                       <ImageWithFallback
                         src={photo.imageUrl}
                         alt={`${photo.title} — ${photo.location}`}
                         title={photo.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     )}
                     {isVideo && (
@@ -177,7 +195,7 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
                         {photo.location} · Oleh {photo.photographer}
                       </p>
                     </div>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -199,9 +217,18 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
                       const isHeroTile = localIdx === 0 && slideItems.length >= 3;
                       const isVideo = isVideoItem(photo);
                       return (
-                        <button
+                        <motion.button
                           key={photo.id}
                           type="button"
+                          initial={{ opacity: 0, y: 26, scale: 0.96 }}
+                          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                          viewport={{ once: false, amount: 0.15 }}
+                          transition={{
+                            duration: 0.55,
+                            delay: localIdx * 0.07,
+                            ease: EASE_OUT_EXPO,
+                          }}
+                          whileHover={{ y: -4 }}
                           onClick={() => setActiveIndex(globalIndex)}
                           className={`group relative overflow-hidden rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EAB308] ${
                             isHeroTile
@@ -217,14 +244,14 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
                               loop
                               autoPlay
                               preload="metadata"
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             />
                           ) : (
                             <ImageWithFallback
                               src={photo.imageUrl}
                               alt={`${photo.title} — ${photo.location}`}
                               title={photo.title}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             />
                           )}
                           {isVideo && (
@@ -248,7 +275,7 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
                               {photo.location} · Oleh {photo.photographer}
                             </p>
                           </div>
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
@@ -307,100 +334,112 @@ export function GallerySection({ photos, sectionMeta }: GallerySectionProps) {
       </div>
 
       {/* Fullscreen Lightbox */}
-      {activePhoto && activeIndex !== null && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Pratinjau media ${activePhoto.title}`}
-          className="fixed inset-0 z-50 flex flex-col justify-between bg-black/95 p-4 sm:p-8"
-          onClick={() => setActiveIndex(null)}
-        >
-          <div
-            className="flex items-center justify-between gap-4"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {activePhoto && activeIndex !== null && (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Pratinjau media ${activePhoto.title}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="fixed inset-0 z-50 flex flex-col justify-between bg-black/95 p-4 sm:p-8"
+            onClick={() => setActiveIndex(null)}
           >
-            <div className="text-xs text-[#A8A092]">
-              <span className="font-mono tabular-nums text-[#F5F2EB]">
-                {activeIndex + 1} / {filtered.length}
-              </span>
-              <span className="mx-2" aria-hidden="true">
-                ·
-              </span>
-              <span>{activePhoto.category}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActiveIndex(null)}
-              aria-label="Tutup lightbox media"
-              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] bg-[#161411] text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+            <div
+              className="flex items-center justify-between gap-4"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+              <div className="text-xs text-[#A8A092]">
+                <span className="font-mono tabular-nums text-[#F5F2EB]">
+                  {activeIndex + 1} / {filtered.length}
+                </span>
+                <span className="mx-2" aria-hidden="true">
+                  ·
+                </span>
+                <span>{activePhoto.category}</span>
+              </div>
 
-          <div
-            className="relative flex-1 flex items-center justify-center my-4 min-h-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {filtered.length > 1 && (
               <button
                 type="button"
-                onClick={() =>
-                  setActiveIndex((activeIndex - 1 + filtered.length) % filtered.length)
-                }
-                aria-label="Media sebelumnya"
-                className="absolute left-2 sm:left-4 z-10 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full border border-[#2A2620] bg-[#161411]/90 text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                onClick={() => setActiveIndex(null)}
+                aria-label="Tutup lightbox media"
+                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] bg-[#161411] text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
-            )}
+            </div>
 
-            <div className="max-h-full max-w-5xl overflow-hidden rounded-xl border border-[#2A2620]">
-              {isVideoItem(activePhoto) ? (
-                <video
-                  src={resolveAssetUrl(activePhoto.imageUrl)}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="max-h-[72vh] w-auto max-w-full mx-auto bg-black"
-                />
-              ) : (
-                <ImageWithFallback
-                  src={activePhoto.imageUrl}
-                  alt={activePhoto.title}
-                  title={activePhoto.title}
-                  className="max-h-[72vh] w-auto object-contain mx-auto"
-                />
+            <div
+              className="relative flex-1 flex items-center justify-center my-4 min-h-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {filtered.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveIndex((activeIndex - 1 + filtered.length) % filtered.length)
+                  }
+                  aria-label="Media sebelumnya"
+                  className="absolute left-2 sm:left-4 z-10 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full border border-[#2A2620] bg-[#161411]/90 text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              <motion.div
+                key={activePhoto.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+                className="max-h-full max-w-5xl overflow-hidden rounded-xl border border-[#2A2620]"
+              >
+                {isVideoItem(activePhoto) ? (
+                  <video
+                    src={resolveAssetUrl(activePhoto.imageUrl)}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-[72vh] w-auto max-w-full mx-auto bg-black"
+                  />
+                ) : (
+                  <ImageWithFallback
+                    src={activePhoto.imageUrl}
+                    alt={activePhoto.title}
+                    title={activePhoto.title}
+                    className="max-h-[72vh] w-auto object-contain mx-auto"
+                  />
+                )}
+              </motion.div>
+
+              {filtered.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveIndex((activeIndex + 1) % filtered.length)}
+                  aria-label="Media berikutnya"
+                  className="absolute right-2 sm:right-4 z-10 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full border border-[#2A2620] bg-[#161411]/90 text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               )}
             </div>
 
-            {filtered.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setActiveIndex((activeIndex + 1) % filtered.length)}
-                aria-label="Media berikutnya"
-                className="absolute right-2 sm:right-4 z-10 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full border border-[#2A2620] bg-[#161411]/90 text-[#F5F2EB] hover:border-[#EAB308] cursor-pointer"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-
-          <div
-            className="mx-auto max-w-3xl text-center space-y-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-display text-lg sm:text-xl font-bold text-[#F5F2EB]">
-              {activePhoto.title}
-            </h3>
-            <p className="text-xs sm:text-sm text-[#A8A092]">
-              {activePhoto.location} · {activePhoto.dateLabel} · Kredit Foto:{' '}
-              {activePhoto.photographer}
-            </p>
-          </div>
-        </div>
-      )}
+            <div
+              className="mx-auto max-w-3xl text-center space-y-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="font-display text-lg sm:text-xl font-bold text-[#F5F2EB]">
+                {activePhoto.title}
+              </h3>
+              <p className="text-xs sm:text-sm text-[#A8A092]">
+                {activePhoto.location} · {activePhoto.dateLabel} · Kredit Foto:{' '}
+                {activePhoto.photographer}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

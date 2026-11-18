@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { SiteSection, Track } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -34,6 +35,8 @@ interface MusicPlayerSectionProps {
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
 }
+
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export function formatTime(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) return '0:00';
@@ -72,21 +75,33 @@ export function MusicPlayerSection({
   return (
     <section
       id={sectionMeta?.slug || 'musik'}
-      className="border-b border-[#2A2620] py-16 lg:py-20"
+      className="border-b border-[#2A2620] py-16 lg:py-20 overflow-hidden"
     >
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: false, amount: 0.3 }}
+          transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+          className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10"
+        >
           <div>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Katalog Rilisan & Studio Dub Stream'}
             </h2>
           </div>
-        </div>
+        </motion.div>
 
         {active ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Active Vinyl Deck */}
-            <div className="lg:col-span-5 rounded-2xl border border-[#2A3024] dub-surface p-5 sm:p-6 space-y-6 shadow-2xl relative overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, x: -30, y: 16 }}
+              whileInView={{ opacity: 1, x: 0, y: 0 }}
+              viewport={{ once: false, amount: 0.2 }}
+              transition={{ duration: 0.65, ease: EASE_OUT_EXPO }}
+              className="lg:col-span-5 rounded-2xl border border-[#2A3024] dub-surface p-5 sm:p-6 space-y-6 shadow-2xl relative overflow-hidden"
+            >
               <div className="h-[2px] w-full reggae-hairline absolute top-0 inset-x-0" aria-hidden="true" />
 
               <div className="flex items-center gap-4 sm:gap-5 pt-1">
@@ -94,7 +109,7 @@ export function MusicPlayerSection({
                   {isPlaying && (
                     <div
                       aria-hidden="true"
-                      className="absolute -inset-2 rounded-full bg-gradient-to-tr from-[#16A34A]/35 via-[#EAB308]/35 to-[#DC2626]/35 blur-md"
+                      className="absolute -inset-2 rounded-full bg-gradient-to-tr from-[#16A34A]/35 via-[#EAB308]/35 to-[#DC2626]/35 blur-md animate-bass-pulse"
                     />
                   )}
                   <div
@@ -195,16 +210,18 @@ export function MusicPlayerSection({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
+                  <motion.button
                     type="button"
-                     data-track-select="true"
+                    data-track-select="true"
                     onClick={onPrev}
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.94 }}
                     aria-label="Lagu sebelumnya"
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] text-[#F5F2EB] hover:bg-[#1F1C17] cursor-pointer"
                   >
                     <SkipBack className="w-4 h-4" />
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     type="button"
                     data-track-select="true"
                     onClick={() => {
@@ -214,24 +231,28 @@ export function MusicPlayerSection({
                         onTogglePlay();
                       }
                     }}
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
                     aria-label={isPlaying ? 'Jeda lagu' : 'Putar lagu'}
-                    className="min-h-[48px] min-w-[48px] inline-flex items-center justify-center rounded-full bg-[#EAB308] text-[#0C0B09] hover:bg-[#FACC15] shadow-lg shadow-[#EAB308]/20 transition-all cursor-pointer"
+                    className="min-h-[48px] min-w-[48px] inline-flex items-center justify-center rounded-full bg-[#EAB308] text-[#0C0B09] hover:bg-[#FACC15] shadow-lg shadow-[#EAB308]/20 transition-colors cursor-pointer"
                   >
                     {isPlaying ? (
                       <Pause className="w-5 h-5 fill-current" />
                     ) : (
                       <Play className="w-5 h-5 fill-current ml-0.5" />
                     )}
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     type="button"
                     data-track-select="true"
                     onClick={onNext}
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.94 }}
                     aria-label="Lagu berikutnya"
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] text-[#F5F2EB] hover:bg-[#1F1C17] cursor-pointer"
                   >
                     <SkipForward className="w-4 h-4" />
-                  </button>
+                  </motion.button>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -271,18 +292,32 @@ export function MusicPlayerSection({
                   <span>{showLyrics ? 'Tutup Lirik Lagu' : 'Lihat Lirik Lagu'}</span>
                 </button>
 
-                {showLyrics && (
-                  <div className="mt-3 pt-3 border-t border-[#2A2620]/70 text-sm">
-                    <p className="whitespace-pre-line text-[#D6CFC2] leading-relaxed">
-                      {active.lyrics?.trim() || 'Lirik lagu belum ditambahkan.'}
-                    </p>
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {showLyrics && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
+                      className="mt-3 pt-3 border-t border-[#2A2620]/70 text-sm"
+                    >
+                      <p className="whitespace-pre-line text-[#D6CFC2] leading-relaxed">
+                        {active.lyrics?.trim() || 'Lirik lagu belum ditambahkan.'}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
+            </motion.div>
 
             {/* Tracklist Table */}
-            <div className="lg:col-span-7 rounded-2xl border border-[#2A3024] dub-surface overflow-hidden shadow-2xl">
+            <motion.div
+              initial={{ opacity: 0, x: 30, y: 16 }}
+              whileInView={{ opacity: 1, x: 0, y: 0 }}
+              viewport={{ once: false, amount: 0.2 }}
+              transition={{ duration: 0.65, delay: 0.08, ease: EASE_OUT_EXPO }}
+              className="lg:col-span-7 rounded-2xl border border-[#2A3024] dub-surface overflow-hidden shadow-2xl"
+            >
               <div className="px-4 sm:px-6 py-4 border-b border-[#2A2620] flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-[#F5F2EB]">
                   Daftar Putar ({tracks.length} Lagu)
@@ -297,10 +332,19 @@ export function MusicPlayerSection({
                   const isActive = active.id === track.id;
                   const isCurrentlyPlaying = isActive && isPlaying;
                   return (
-                    <button
+                    <motion.button
                       key={track.id}
                       type="button"
                       data-track-select="true"
+                      initial={{ opacity: 0, y: 14 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: false, amount: 0.15 }}
+                      transition={{
+                        duration: 0.4,
+                        delay: Math.min(idx * 0.05, 0.35),
+                        ease: EASE_OUT_EXPO,
+                      }}
+                      whileHover={{ x: 4 }}
                       onClick={() => {
                         if (isActive && currentTrack) {
                           onTogglePlay();
@@ -308,7 +352,7 @@ export function MusicPlayerSection({
                           onSelectTrack(track);
                         }
                       }}
-                      className={`group relative w-full text-left px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 transition-all duration-200 cursor-pointer ${
+                      className={`group relative w-full text-left px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 transition-colors duration-200 cursor-pointer ${
                         isActive
                           ? 'bg-gradient-to-r from-[#EAB308]/15 via-[#16A34A]/10 to-transparent'
                           : 'hover:bg-[#1B1814]/80'
@@ -346,7 +390,9 @@ export function MusicPlayerSection({
 
                         <div
                           className={`w-11 h-11 rounded-lg overflow-hidden border shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                            isActive ? 'border-[#EAB308]/70 shadow-md shadow-[#EAB308]/10' : 'border-[#2A2620]'
+                            isActive
+                              ? 'border-[#EAB308]/70 shadow-md shadow-[#EAB308]/10'
+                              : 'border-[#2A2620]'
                           }`}
                         >
                           <ImageWithFallback
@@ -380,15 +426,19 @@ export function MusicPlayerSection({
                         <span className="hidden sm:inline">
                           {track.plays.toLocaleString('id-ID')} putar
                         </span>
-                        <span className={isActive ? 'text-[#EAB308] font-semibold' : 'text-[#D6CFC2]'}>
+                        <span
+                          className={
+                            isActive ? 'text-[#EAB308] font-semibold' : 'text-[#D6CFC2]'
+                          }
+                        >
                           {formatTime(track.durationSec)}
                         </span>
                       </div>
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
           </div>
         ) : (
           <div className="rounded-2xl border border-[#2A2620] bg-[#161411] p-10 text-center text-sm text-[#A8A092]">

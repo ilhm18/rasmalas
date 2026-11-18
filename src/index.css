@@ -191,6 +191,38 @@
   }
 }
 
+@keyframes bass-pulse-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.18;
+  }
+  100% {
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+}
+
+@keyframes dust-drift-up {
+  0% {
+    transform: translate3d(0, 20px, 0) scale(0.85);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.55;
+  }
+  75% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate3d(18px, -70px, 0) scale(1.15);
+    opacity: 0;
+  }
+}
+
 .animate-vinyl {
   animation: slow-spin 14s linear infinite;
 }
@@ -202,6 +234,10 @@
 
 .animate-vinyl-bg {
   animation: slow-spin 55s linear infinite;
+}
+
+.animate-Vinyl-bg-reverse {
+  animation: slow-spin 70s linear infinite reverse;
 }
 
 .animate-dub-orb-1 {
@@ -222,6 +258,14 @@
 
 .animate-wave-slide {
   animation: wave-slide 24s ease-in-out infinite;
+}
+
+.animate-bass-pulse {
+  animation: bass-pulse-ring 4.2s ease-in-out infinite;
+}
+
+.animate-dust {
+  animation: dust-drift-up 11s ease-in-out infinite;
 }
 
 .animate-eq-1 {
@@ -248,11 +292,14 @@
   .animate-vinyl,
   .animate-vinyl-paused,
   .animate-vinyl-bg,
+  .animate-Vinyl-bg-reverse,
   .animate-dub-orb-1,
   .animate-dub-orb-2,
   .animate-dub-orb-3,
   .animate-float-gentle,
   .animate-wave-slide,
+  .animate-bass-pulse,
+  .animate-dust,
   .animate-eq-1,
   .animate-eq-2,
   .animate-eq-3,

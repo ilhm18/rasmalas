@@ -1,4 +1,5 @@
 import { ArrowUp, ArrowUpRight, Lock, Mail, MapPin } from 'lucide-react';
+import { motion } from 'motion/react';
 import { resolveAssetUrl } from '../shared/assetUrl';
 import type { BandProfile, SiteSection, SocialChannel } from '../shared/types';
 
@@ -9,6 +10,8 @@ interface FooterProps {
   isAdmin: boolean;
   onOpenAdmin: () => void;
 }
+
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export function Footer({
   profile,
@@ -52,10 +55,16 @@ export function Footer({
   const hasNavColumn = navItems.length > 0;
 
   return (
-    <footer className="relative border-t border-[#2A3024] bg-[#090C08]/95 backdrop-blur-md">
+    <footer className="relative border-t border-[#2A3024] bg-[#090C08]/95 backdrop-blur-md overflow-hidden">
       <div className="h-[2px] w-full reggae-hairline opacity-80" aria-hidden="true" />
 
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 pt-12 pb-8">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: false, amount: 0.2 }}
+        transition={{ duration: 0.65, ease: EASE_OUT_EXPO }}
+        className="mx-auto max-w-[1200px] px-4 sm:px-6 pt-12 pb-8"
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
           {/* Brand & Info */}
           <div className="sm:col-span-2 lg:col-span-5 space-y-4">
@@ -187,7 +196,7 @@ export function Footer({
             </a>
           </div>
         </div>
-      </div>
+      </motion.div>
     </footer>
   );
 }

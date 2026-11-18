@@ -1,4 +1,5 @@
 import { ArrowRight, Play } from 'lucide-react';
+import { motion } from 'motion/react';
 import type { BandProfile } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -8,50 +9,88 @@ interface HeroSectionProps {
   onPlayLatest: () => void;
 }
 
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
 export function HeroSection({
   profile,
   secondaryHref = '#jadwal',
   onPlayLatest,
 }: HeroSectionProps) {
   return (
-    <section id="top" className="relative border-b border-[#2A3024]">
+    <section id="top" className="relative border-b border-[#2A3024] overflow-hidden">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 pt-8 sm:pt-10 pb-10 lg:pt-12 lg:pb-14">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-          <div className="lg:col-span-6 flex flex-col justify-center">
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: EASE_OUT_EXPO }}
+            className="lg:col-span-6 flex flex-col justify-center"
+          >
             {profile.kicker?.trim() && (
-              <p className="text-xs font-semibold tracking-wider uppercase text-[#EAB308] mb-3">
+              <motion.p
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.08, ease: EASE_OUT_EXPO }}
+                className="text-xs font-semibold tracking-wider uppercase text-[#EAB308] mb-3"
+              >
                 {profile.kicker}
-              </p>
+              </motion.p>
             )}
-            <h1 className="font-display text-[clamp(2.25rem,4vw,3.75rem)] font-bold leading-[1.08] tracking-tight text-[#F5F2EB] text-balance max-w-2xl">
+            <motion.h1
+              initial={{ opacity: 0, y: 22 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.14, ease: EASE_OUT_EXPO }}
+              className="font-display text-[clamp(2.25rem,4vw,3.75rem)] font-bold leading-[1.08] tracking-tight text-[#F5F2EB] text-balance max-w-2xl"
+            >
               {profile.headline}
-            </h1>
-            <p className="mt-4 text-[15px] md:text-base leading-relaxed text-[#D6CFC2] max-w-[56ch]">
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.22, ease: EASE_OUT_EXPO }}
+              className="mt-4 text-[15px] md:text-base leading-relaxed text-[#D6CFC2] max-w-[56ch]"
+            >
               {profile.subheadline}
-            </p>
+            </motion.p>
 
-            <div className="mt-7 flex flex-wrap items-center gap-4 sm:gap-5">
-              <button
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.3, ease: EASE_OUT_EXPO }}
+              className="mt-7 flex flex-wrap items-center gap-4 sm:gap-5"
+            >
+              <motion.button
                 type="button"
                 data-track-select="true"
                 onClick={onPlayLatest}
-                className="inline-flex items-center gap-2.5 min-h-[44px] px-5 py-2.5 text-sm font-semibold text-[#090B08] bg-[#EAB308] rounded-lg shadow-lg shadow-[#EAB308]/20 transition-all duration-200 hover:bg-[#FACC15] hover:-translate-y-0.5 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5F2EB]"
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                className="inline-flex items-center gap-2.5 min-h-[44px] px-5 py-2.5 text-sm font-semibold text-[#090B08] bg-[#EAB308] rounded-lg shadow-lg shadow-[#EAB308]/25 transition-colors duration-200 hover:bg-[#FACC15] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5F2EB]"
               >
                 <Play className="w-4 h-4 fill-current" aria-hidden="true" />
                 {profile.heroCtaPrimary || 'Putar Album Terbaru'}
-              </button>
+              </motion.button>
 
-              <a
+              <motion.a
                 href={secondaryHref}
-                className="inline-flex items-center gap-2 min-h-[44px] px-2 text-sm font-medium text-[#F5F2EB] hover:text-[#EAB308] transition-colors duration-150 whitespace-nowrap shrink-0"
+                whileHover={{ x: 4 }}
+                className="group inline-flex items-center gap-2 min-h-[44px] px-2 text-sm font-medium text-[#F5F2EB] hover:text-[#EAB308] transition-colors duration-150 whitespace-nowrap shrink-0"
               >
                 {profile.heroCtaSecondary || 'Lihat Jadwal'}
-                <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </a>
-            </div>
-          </div>
+                <ArrowRight
+                  className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
+                  aria-hidden="true"
+                />
+              </motion.a>
+            </motion.div>
+          </motion.div>
 
-          <div className="lg:col-span-6">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 28 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.75, delay: 0.18, ease: EASE_OUT_EXPO }}
+            className="lg:col-span-6"
+          >
             <div className="relative animate-float-gentle">
               <div
                 aria-hidden="true"
@@ -85,20 +124,29 @@ export function HeroSection({
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         <div className="mt-10 pt-8 border-t border-[#2A3024] grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {profile.stats.map((stat) => (
-            <div
+          {profile.stats.map((stat, idx) => (
+            <motion.div
               key={stat.label}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: false, amount: 0.25 }}
+              transition={{
+                duration: 0.5,
+                delay: idx * 0.08,
+                ease: EASE_OUT_EXPO,
+              }}
+              whileHover={{ y: -4, scale: 1.015 }}
               className="rounded-xl border border-[#2A3024]/60 dub-surface p-4 dub-card-hover space-y-1"
             >
               <p className="font-display text-2xl md:text-3xl font-bold text-[#F5F2EB] font-mono tabular-nums tracking-tight">
                 {stat.value}
               </p>
               <p className="text-xs md:text-sm text-[#A8A092]">{stat.label}</p>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>

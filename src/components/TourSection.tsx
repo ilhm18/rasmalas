@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Calendar, Clock, MapPin, Search, Ticket, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { normalizeTourStatus } from '../shared/tourUtils';
 import type { SiteSection, TourDate, TourStatus } from '../shared/types';
 
@@ -9,6 +10,8 @@ interface TourSectionProps {
 }
 
 type TourFilter = 'all' | 'upcoming' | 'past';
+
+const EASE_OUT_EXPO: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 function formatTourDate(dateStr: string): string {
   const parsed = new Date(`${dateStr}T00:00:00`);
@@ -64,10 +67,16 @@ export function TourSection({ tours, sectionMeta }: TourSectionProps) {
   return (
     <section
       id={sectionMeta?.slug || 'jadwal'}
-      className="border-b border-[#2A2620] py-14 sm:py-16 lg:py-20"
+      className="border-b border-[#2A2620] py-14 sm:py-16 lg:py-20 overflow-hidden"
     >
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: false, amount: 0.25 }}
+          transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+          className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10"
+        >
           <div>
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
               {sectionMeta?.title || 'Jadwal Penampilan Rasmalas'}
@@ -118,18 +127,33 @@ export function TourSection({ tours, sectionMeta }: TourSectionProps) {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm divide-y divide-[#2A2620] overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: false, amount: 0.15 }}
+          transition={{ duration: 0.65, ease: EASE_OUT_EXPO }}
+          className="rounded-2xl border border-[#2A3024] dub-surface divide-y divide-[#2A2620] overflow-hidden shadow-xl"
+        >
           {filteredTours.length === 0 ? (
             <div className="p-10 text-center text-sm text-[#A8A092]">
               Tidak ada jadwal yang sesuai filter pencarian.
             </div>
           ) : (
-            filteredTours.map((tour) => (
-              <div
+            filteredTours.map((tour, idx) => (
+              <motion.div
                 key={tour.id}
-                className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#1B1814] transition-colors"
+                initial={{ opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: false, amount: 0.2 }}
+                transition={{
+                  duration: 0.45,
+                  delay: Math.min(idx * 0.06, 0.35),
+                  ease: EASE_OUT_EXPO,
+                }}
+                whileHover={{ x: 4 }}
+                className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#1B1814]/85 transition-colors"
               >
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 flex-1 items-center">
                   <div className="sm:col-span-3">
@@ -162,97 +186,109 @@ export function TourSection({ tours, sectionMeta }: TourSectionProps) {
                 </div>
 
                 <div className="shrink-0">
-                  <button
+                  <motion.button
                     type="button"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => setSelectedTour(tour)}
                     className="min-h-[40px] px-4 py-2 text-xs font-semibold rounded-lg border border-[#2A2620] bg-[#0C0B09] text-[#F5F2EB] hover:border-[#EAB308] hover:text-[#EAB308] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     Detail &amp; Tiket
-                  </button>
+                  </motion.button>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* Ticket / Tour Detail Modal */}
-      {selectedTour && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="tour-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          onClick={() => setSelectedTour(null)}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl border border-[#2A3024] bg-[#11150F]/80 backdrop-blur-sm p-6 space-y-5"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {selectedTour && (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tour-modal-title"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            onClick={() => setSelectedTour(null)}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium text-[#EAB308]">Informasi Pertunjukan</p>
-                <h3
-                  id="tour-modal-title"
-                  className="font-display text-2xl font-bold text-[#F5F2EB] mt-1"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+              className="w-full max-w-lg rounded-2xl border border-[#2A3024] bg-[#11150F]/95 backdrop-blur-md p-6 space-y-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-medium text-[#EAB308]">Informasi Pertunjukan</p>
+                  <h3
+                    id="tour-modal-title"
+                    className="font-display text-2xl font-bold text-[#F5F2EB] mt-1"
+                  >
+                    {selectedTour.venue}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTour(null)}
+                  aria-label="Tutup modal detail jadwal"
+                  className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
                 >
-                  {selectedTour.venue}
-                </h3>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedTour(null)}
-                aria-label="Tutup modal detail jadwal"
-                className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center rounded-lg border border-[#2A2620] text-[#A8A092] hover:text-[#F5F2EB] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="space-y-3 border-y border-[#2A2620] py-4 text-sm text-[#D6CFC2]">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
-                <span className="font-mono tabular-nums">
-                  {formatTourDate(selectedTour.date)}
-                </span>
+              <div className="space-y-3 border-y border-[#2A2620] py-4 text-sm text-[#D6CFC2]">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                  <span className="font-mono tabular-nums">
+                    {formatTourDate(selectedTour.date)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                  <span className="font-mono tabular-nums">{selectedTour.stageTime}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                  <span>
+                    {selectedTour.city}, {selectedTour.country}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Ticket className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
+                  <span>
+                    {selectedTour.priceLabel} · Status: {selectedTour.status}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Clock className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
-                <span className="font-mono tabular-nums">{selectedTour.stageTime}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <MapPin className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
-                <span>
-                  {selectedTour.city}, {selectedTour.country}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Ticket className="w-4 h-4 text-[#EAB308] shrink-0" aria-hidden="true" />
-                <span>
-                  {selectedTour.priceLabel} · Status: {selectedTour.status}
-                </span>
-              </div>
-            </div>
 
-            {selectedTour.notes && (
-              <p className="text-sm text-[#A8A092] leading-relaxed">{selectedTour.notes}</p>
-            )}
+              {selectedTour.notes && (
+                <p className="text-sm text-[#A8A092] leading-relaxed">{selectedTour.notes}</p>
+              )}
 
-            {selectedTour.ticketUrl && selectedTour.ticketUrl.startsWith('http') && (
-              <div className="pt-2">
-                <a
-                  href={selectedTour.ticketUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-h-[44px] inline-flex items-center px-4 py-2 text-xs font-medium text-[#D6CFC2] border border-[#2A2620] rounded-lg hover:text-[#F5F2EB]"
-                >
-                  Buka Loket Resmi
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              {selectedTour.ticketUrl && selectedTour.ticketUrl.startsWith('http') && (
+                <div className="pt-2">
+                  <a
+                    href={selectedTour.ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-h-[44px] inline-flex items-center px-4 py-2 text-xs font-medium text-[#D6CFC2] border border-[#2A2620] rounded-lg hover:text-[#F5F2EB]"
+                  >
+                    Buka Loket Resmi
+                  </a>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
