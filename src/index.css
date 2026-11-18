@@ -49,9 +49,9 @@
 .dub-surface {
   background: linear-gradient(
     160deg,
-    rgba(19, 25, 16, 0.86) 0%,
-    rgba(14, 17, 12, 0.88) 55%,
-    rgba(22, 15, 13, 0.84) 100%
+    rgba(16, 22, 14, 0.78) 0%,
+    rgba(12, 15, 10, 0.82) 55%,
+    rgba(20, 13, 11, 0.78) 100%
   );
   backdrop-filter: blur(14px);
 }
@@ -94,10 +94,10 @@
     transform: translate3d(0, 0, 0) scale(1);
   }
   33% {
-    transform: translate3d(4vw, 3vh, 0) scale(1.08);
+    transform: translate3d(6vw, 4vh, 0) scale(1.14);
   }
   66% {
-    transform: translate3d(-3vw, 5vh, 0) scale(0.95);
+    transform: translate3d(-4vw, 7vh, 0) scale(0.92);
   }
 }
 
@@ -106,10 +106,10 @@
     transform: translate3d(0, 0, 0) scale(1);
   }
   40% {
-    transform: translate3d(-5vw, -3vh, 0) scale(1.1);
+    transform: translate3d(-7vw, -5vh, 0) scale(1.16);
   }
   75% {
-    transform: translate3d(3vw, 4vh, 0) scale(0.94);
+    transform: translate3d(5vw, 5vh, 0) scale(0.9);
   }
 }
 
@@ -118,7 +118,7 @@
     transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: translate3d(4vw, -4vh, 0) scale(1.12);
+    transform: translate3d(6vw, -6vh, 0) scale(1.18);
   }
 }
 
@@ -133,13 +133,13 @@
 
 @keyframes eq-bar-1 {
   0%, 100% {
-    transform: scaleY(0.28);
+    transform: scaleY(0.22);
   }
   45% {
     transform: scaleY(1);
   }
   75% {
-    transform: scaleY(0.55);
+    transform: scaleY(0.48);
   }
 }
 
@@ -148,7 +148,7 @@
     transform: scaleY(0.85);
   }
   30% {
-    transform: scaleY(0.3);
+    transform: scaleY(0.25);
   }
   65% {
     transform: scaleY(1);
@@ -157,13 +157,13 @@
 
 @keyframes eq-bar-3 {
   0%, 100% {
-    transform: scaleY(0.42);
+    transform: scaleY(0.38);
   }
   35% {
     transform: scaleY(0.95);
   }
   80% {
-    transform: scaleY(0.25);
+    transform: scaleY(0.2);
   }
 }
 
@@ -175,7 +175,7 @@
     transform: scaleY(1);
   }
   60% {
-    transform: scaleY(0.32);
+    transform: scaleY(0.28);
   }
 }
 
@@ -193,33 +193,98 @@
 
 @keyframes bass-pulse-ring {
   0% {
-    transform: scale(0.92);
-    opacity: 0.45;
+    transform: scale(0.88);
+    opacity: 0.6;
   }
   50% {
-    transform: scale(1.06);
+    transform: scale(1.12);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(0.88);
+    opacity: 0.6;
+  }
+}
+
+@keyframes sound-ripple-out {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.55;
+  }
+  70% {
     opacity: 0.18;
   }
   100% {
-    transform: scale(0.92);
-    opacity: 0.45;
+    transform: scale(1.65);
+    opacity: 0;
   }
 }
 
 @keyframes dust-drift-up {
   0% {
-    transform: translate3d(0, 20px, 0) scale(0.85);
+    transform: translate3d(0, 30px, 0) scale(0.8) rotate(0deg);
     opacity: 0;
   }
-  25% {
+  20% {
+    opacity: 0.7;
+  }
+  80% {
     opacity: 0.55;
   }
-  75% {
+  100% {
+    transform: translate3d(28px, -110px, 0) scale(1.18) rotate(18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes spotlight-sway-left {
+  0%, 100% {
+    transform: rotate(-18deg) scaleY(1);
     opacity: 0.45;
   }
-  100% {
-    transform: translate3d(18px, -70px, 0) scale(1.15);
-    opacity: 0;
+  50% {
+    transform: rotate(8deg) scaleY(1.08);
+    opacity: 0.7;
+  }
+}
+
+@keyframes spotlight-sway-center {
+  0%, 100% {
+    transform: rotate(-6deg) scaleY(1.04);
+    opacity: 0.5;
+  }
+  50% {
+    transform: rotate(10deg) scaleY(0.96);
+    opacity: 0.72;
+  }
+}
+
+@keyframes spotlight-sway-right {
+  0%, 100% {
+    transform: rotate(16deg) scaleY(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: rotate(-10deg) scaleY(1.1);
+    opacity: 0.68;
+  }
+}
+
+@keyframes palm-breeze-left {
+  0%, 100% {
+    transform: rotate(-3deg) scale(1);
+  }
+  50% {
+    transform: rotate(4deg) scale(1.03);
+  }
+}
+
+@keyframes palm-breeze-right {
+  0%, 100% {
+    transform: rotate(3.5deg) scale(1);
+  }
+  50% {
+    transform: rotate(-3.5deg) scale(1.03);
   }
 }
 
@@ -233,23 +298,23 @@
 }
 
 .animate-vinyl-bg {
-  animation: slow-spin 55s linear infinite;
+  animation: slow-spin 42s linear infinite;
 }
 
 .animate-Vinyl-bg-reverse {
-  animation: slow-spin 70s linear infinite reverse;
+  animation: slow-spin 54s linear infinite reverse;
 }
 
 .animate-dub-orb-1 {
-  animation: dub-orb-1 18s ease-in-out infinite;
+  animation: dub-orb-1 14s ease-in-out infinite;
 }
 
 .animate-dub-orb-2 {
-  animation: dub-orb-2 22s ease-in-out infinite;
+  animation: dub-orb-2 18s ease-in-out infinite;
 }
 
 .animate-dub-orb-3 {
-  animation: dub-orb-3 26s ease-in-out infinite;
+  animation: dub-orb-3 21s ease-in-out infinite;
 }
 
 .animate-float-gentle {
@@ -257,35 +322,72 @@
 }
 
 .animate-wave-slide {
-  animation: wave-slide 24s ease-in-out infinite;
+  animation: wave-slide 18s ease-in-out infinite;
+}
+
+.animate-wave-slide-reverse {
+  animation: wave-slide 24s ease-in-out infinite reverse;
 }
 
 .animate-bass-pulse {
-  animation: bass-pulse-ring 4.2s ease-in-out infinite;
+  animation: bass-pulse-ring 3.2s ease-in-out infinite;
+}
+
+.animate-sound-ripple {
+  animation: sound-ripple-out 4.5s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.animate-sound-ripple-delayed {
+  animation: sound-ripple-out 4.5s cubic-bezier(0.16, 1, 0.3, 1) 2.25s infinite;
 }
 
 .animate-dust {
-  animation: dust-drift-up 11s ease-in-out infinite;
+  animation: dust-drift-up 9s ease-in-out infinite;
+}
+
+.animate-spotlight-left {
+  transform-origin: top left;
+  animation: spotlight-sway-left 11s ease-in-out infinite;
+}
+
+.animate-spotlight-center {
+  transform-origin: top center;
+  animation: spotlight-sway-center 14s ease-in-out infinite;
+}
+
+.animate-spotlight-right {
+  transform-origin: top right;
+  animation: spotlight-sway-right 12s ease-in-out infinite;
+}
+
+.animate-palm-left {
+  transform-origin: bottom left;
+  animation: palm-breeze-left 7s ease-in-out infinite;
+}
+
+.animate-palm-right {
+  transform-origin: bottom right;
+  animation: palm-breeze-right 8s ease-in-out infinite;
 }
 
 .animate-eq-1 {
   transform-origin: bottom;
-  animation: eq-bar-1 0.75s ease-in-out infinite;
+  animation: eq-bar-1 0.72s ease-in-out infinite;
 }
 
 .animate-eq-2 {
   transform-origin: bottom;
-  animation: eq-bar-2 0.62s ease-in-out infinite;
+  animation: eq-bar-2 0.58s ease-in-out infinite;
 }
 
 .animate-eq-3 {
   transform-origin: bottom;
-  animation: eq-bar-3 0.84s ease-in-out infinite;
+  animation: eq-bar-3 0.8s ease-in-out infinite;
 }
 
 .animate-eq-4 {
   transform-origin: bottom;
-  animation: eq-bar-4 0.68s ease-in-out infinite;
+  animation: eq-bar-4 0.64s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -298,8 +400,16 @@
   .animate-dub-orb-3,
   .animate-float-gentle,
   .animate-wave-slide,
+  .animate-wave-slide-reverse,
   .animate-bass-pulse,
+  .animate-sound-ripple,
+  .animate-sound-ripple-delayed,
   .animate-dust,
+  .animate-spotlight-left,
+  .animate-spotlight-center,
+  .animate-spotlight-right,
+  .animate-palm-left,
+  .animate-palm-right,
   .animate-eq-1,
   .animate-eq-2,
   .animate-eq-3,
