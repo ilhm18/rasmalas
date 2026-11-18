@@ -658,6 +658,14 @@ async function startServer(): Promise<void> {
       current.headline = body.headline.trim().slice(0, 160);
     if (typeof body.subheadline === 'string')
       current.subheadline = body.subheadline.trim().slice(0, 320);
+    if (typeof body.profileSectionTitle === 'string')
+      current.profileSectionTitle =
+        body.profileSectionTitle.trim().slice(0, 160) ||
+        'Rekaman Pita Analog, Akar Reggae Pesisir.';
+    if (typeof body.profileSectionSubtitle === 'string')
+      current.profileSectionSubtitle =
+        body.profileSectionSubtitle.trim().slice(0, 180) ||
+        'Instrumen live tanpa backing track digital';
     if (typeof body.bio === 'string') current.bio = body.bio.trim().slice(0, 800);
     if (typeof body.studioQuote === 'string')
       current.studioQuote = body.studioQuote.trim().slice(0, 300);

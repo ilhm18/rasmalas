@@ -50,7 +50,9 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
 
           <div className="lg:col-span-7 space-y-5">
             <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight text-[#F5F2EB] text-balance">
-              {sectionMeta?.title || 'Rekaman Pita Analog, Akar Reggae Pesisir.'}
+              {profile.profileSectionTitle?.trim() ||
+                sectionMeta?.title ||
+                'Rekaman Pita Analog, Akar Reggae Pesisir.'}
             </h2>
             <p className="text-[15px] md:text-base leading-relaxed text-[#D6CFC2] max-w-[68ch]">
               {profile.bio}
@@ -72,7 +74,9 @@ export function BandProfileSection({ profile, sectionMeta }: BandProfileSectionP
               Formasi Panggung Utama
             </h3>
             <p className="text-xs text-[#A8A092]">
-              {sectionMeta?.subtitle || 'Instrumen live tanpa backing track digital'}
+              {profile.profileSectionSubtitle?.trim() ||
+                sectionMeta?.subtitle ||
+                'Instrumen live tanpa backing track digital'}
             </p>
           </div>
 

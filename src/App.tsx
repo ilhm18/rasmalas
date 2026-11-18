@@ -10,6 +10,7 @@ import { Navbar } from './components/Navbar';
 import { ReggaeAmbientBackdrop } from './components/ReggaeAmbientBackdrop';
 import { SocialRealtimeSection } from './components/SocialRealtimeSection';
 import { StickyMiniPlayer } from './components/StickyMiniPlayer';
+import { StudioLoadingScreen } from './components/StudioLoadingScreen';
 import { TourSection } from './components/TourSection';
 import { useBandRealtime } from './hooks/useBandRealtime';
 import {
@@ -224,6 +225,7 @@ export default function App() {
         audio.src = src;
       }
       audio.currentTime = 0;
+      audio.muted = isMuted;
       audio.volume = isMuted ? 0 : volume;
       audio
         .play()
@@ -238,9 +240,9 @@ export default function App() {
     [getTrackSource, isMuted, recordTrackPlay, volume]
   );
 
-  // Autoplay "Rasmalas - Uyee" (or first track) when the public site is first opened
+  // Instant Autoplay "Rasmalas - Uyee" (or first track) immediately when the web opens
   useEffect(() => {
-    if (loading || viewMode !== 'public' || tracks.length === 0) return;
+    if (viewMode !== 'public' || tracks.length === 0) return;
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -276,13 +278,40 @@ export default function App() {
     if (audio.src !== resolvedHref) {
       audio.src = src;
     }
+    audio.autoplay = true;
+    audio.preload = 'auto';
+    audio.muted = isMuted;
     audio.volume = isMuted ? 0 : volume;
 
     let unlocked = false;
+    let countedPlay = false;
+
+    const markPlayingOnce = () => {
+      setIsPlaying(true);
+      if (!countedPlay) {
+        countedPlay = true;
+        recordTrackPlay(targetTrack.id);
+      }
+    };
+
+    const INTERACTION_EVENTS = [
+      'pointerdown',
+      'pointermove',
+      'mousemove',
+      'mousedown',
+      'touchstart',
+      'touchmove',
+      'keydown',
+      'click',
+      'wheel',
+      'focus',
+    ] as const;
+
     const removeUnlockListeners = () => {
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('touchstart', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
+      audio.removeEventListener('canplay', onCanPlayAuto);
+      for (const evt of INTERACTION_EVENTS) {
+        window.removeEventListener(evt, handleFirstInteraction, true);
+      }
     };
 
     function handleFirstInteraction(e: Event) {
@@ -291,41 +320,86 @@ export default function App() {
         return;
       }
       const targetEl = e.target as HTMLElement | null;
-      if (targetEl?.closest?.('[data-track-select="true"]')) {
+      if (
+        (e.type === 'click' || e.type === 'pointerdown' || e.type === 'mousedown') &&
+        targetEl?.closest?.('[data-track-select="true"]')
+      ) {
         removeUnlockListeners();
         return;
       }
-      unlocked = true;
-      removeUnlockListeners();
-      cleanupAutoplayUnlockRef.current = null;
 
       const el = audioRef.current;
-      if (!el || !el.paused) return;
+      if (!el) return;
+
+      el.muted = isMuted;
+      el.volume = isMuted ? 0 : volume;
       el.play()
         .then(() => {
-          setIsPlaying(true);
-          recordTrackPlay(targetTrack.id);
+          unlocked = true;
+          removeUnlockListeners();
+          cleanupAutoplayUnlockRef.current = null;
+          markPlayingOnce();
         })
         .catch(() => {
-          setIsPlaying(false);
+          // Keep listeners active until a valid gesture unmutes/plays
         });
     }
 
-    audio
-      .play()
-      .then(() => {
-        unlocked = true;
-        setIsPlaying(true);
-        recordTrackPlay(targetTrack.id);
-      })
-      .catch(() => {
-        setIsPlaying(false);
-        cleanupAutoplayUnlockRef.current = removeUnlockListeners;
-        window.addEventListener('click', handleFirstInteraction, { passive: true });
-        window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
-        window.addEventListener('keydown', handleFirstInteraction, { passive: true });
-      });
-  }, [loading, viewMode, tracks, getTrackSource, isMuted, volume, recordTrackPlay]);
+    function startImmediateAutoplay() {
+      const el = audioRef.current;
+      if (!el || unlocked || userChangedTrackRef.current) return;
+
+      el.muted = isMuted;
+      el.volume = isMuted ? 0 : volume;
+      el.play()
+        .then(() => {
+          unlocked = true;
+          removeUnlockListeners();
+          cleanupAutoplayUnlockRef.current = null;
+          markPlayingOnce();
+        })
+        .catch(() => {
+          // Fallback: start muted playback immediately so the track plays right away at 0ms,
+          // then unmute automatically on the slightest cursor/touch/key activity
+          el.muted = true;
+          el.play()
+            .then(() => {
+              markPlayingOnce();
+              // Attempt immediate unmute in case browser permits after playback begins
+              setTimeout(() => {
+                if (!userChangedTrackRef.current && audioRef.current) {
+                  try {
+                    audioRef.current.muted = isMuted;
+                    audioRef.current.volume = isMuted ? 0 : volume;
+                  } catch {
+                    // Wait for interaction listener
+                  }
+                }
+              }, 120);
+            })
+            .catch(() => {
+              setIsPlaying(false);
+            });
+
+          cleanupAutoplayUnlockRef.current = removeUnlockListeners;
+          for (const evt of INTERACTION_EVENTS) {
+            window.addEventListener(evt, handleFirstInteraction, {
+              capture: true,
+              passive: true,
+            });
+          }
+        });
+    }
+
+    function onCanPlayAuto() {
+      if (!unlocked && !userChangedTrackRef.current && audioRef.current?.paused) {
+        startImmediateAutoplay();
+      }
+    }
+
+    audio.addEventListener('canplay', onCanPlayAuto);
+    startImmediateAutoplay();
+  }, [viewMode, tracks, getTrackSource, isMuted, volume, recordTrackPlay]);
 
   useEffect(() => {
     return () => {
@@ -347,6 +421,8 @@ export default function App() {
       return;
     }
     if (audio.paused) {
+      audio.muted = isMuted;
+      audio.volume = isMuted ? 0 : volume;
       audio
         .play()
         .then(() => setIsPlaying(true))
@@ -355,7 +431,7 @@ export default function App() {
       audio.pause();
       setIsPlaying(false);
     }
-  }, [currentTrack, tracks, playTrack]);
+  }, [currentTrack, tracks, playTrack, isMuted, volume]);
 
   const handleNext = useCallback(() => {
     if (tracks.length === 0) return;
@@ -394,14 +470,20 @@ export default function App() {
     const audio = audioRef.current;
     setVolume(val);
     setIsMuted(val === 0);
-    if (audio) audio.volume = val;
+    if (audio) {
+      audio.muted = val === 0;
+      audio.volume = val;
+    }
   }, []);
 
   const handleToggleMute = useCallback(() => {
     const audio = audioRef.current;
     setIsMuted((prev) => {
       const next = !prev;
-      if (audio) audio.volume = next ? 0 : volume;
+      if (audio) {
+        audio.muted = next;
+        audio.volume = next ? 0 : volume;
+      }
       return next;
     });
   }, [volume]);
@@ -538,41 +620,26 @@ export default function App() {
     }
   }
 
-  if (loading && !bandState) {
-    return (
-      <div className="min-h-screen text-[#F5F2EB] flex items-center justify-center p-6">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-[#EAB308] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-[#D6CFC2]">Memuat profil Rasmalas...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !bandState) {
-    return (
-      <div className="min-h-screen text-[#F5F2EB] flex items-center justify-center p-6">
-        <div className="max-w-md rounded-2xl border border-[#2A3024] bg-[#11150F]/85 backdrop-blur-md p-6 text-center space-y-4">
-          <p className="text-sm text-[#FCA5A5]">{error}</p>
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg cursor-pointer"
-          >
-            Muat Ulang
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!bandState) return null;
-
   return (
     <div className="min-h-screen text-[#F5F2EB]">
-      <audio ref={audioRef} preload="metadata" />
+      <audio ref={audioRef} autoPlay playsInline preload="auto" />
 
-      {viewMode === 'admin' ? (
+      {loading && !bandState ? (
+        <StudioLoadingScreen />
+      ) : error && !bandState ? (
+        <div className="min-h-screen text-[#F5F2EB] flex items-center justify-center p-6">
+          <div className="max-w-md rounded-2xl border border-[#2A3024] bg-[#11150F]/85 backdrop-blur-md p-6 text-center space-y-4">
+            <p className="text-sm text-[#FCA5A5]">{error}</p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="min-h-[40px] px-4 py-2 text-xs font-semibold bg-[#EAB308] text-[#090B08] rounded-lg cursor-pointer"
+            >
+              Muat Ulang
+            </button>
+          </div>
+        </div>
+      ) : !bandState ? null : viewMode === 'admin' ? (
         <AdminDashboard
           bandState={bandState}
           backendMode={backendMode}

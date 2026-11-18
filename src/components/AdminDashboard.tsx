@@ -278,7 +278,18 @@ export function AdminDashboard({
   const [postExternalUrl, setPostExternalUrl] = useState('');
 
   useEffect(() => {
-    setProfileForm(bandState.profile);
+    const profilSec = (bandState.siteSections ?? []).find((s) => s.builtinKey === 'profil');
+    setProfileForm({
+      ...bandState.profile,
+      profileSectionTitle:
+        bandState.profile.profileSectionTitle ??
+        profilSec?.title ??
+        'Rekaman Pita Analog, Akar Reggae Pesisir.',
+      profileSectionSubtitle:
+        bandState.profile.profileSectionSubtitle ??
+        profilSec?.subtitle ??
+        'Instrumen live tanpa backing track digital',
+    });
     setChannelsForm(bandState.socialChannels);
   }, [bandState]);
 
@@ -2815,6 +2826,49 @@ export function AdminDashboard({
                       }
                       className="w-full p-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
                     />
+                  </div>
+
+                  <div className="pt-2 border-t border-[#2A3024] grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Judul Bagian Profil (di atas Biografi)
+                      </label>
+                      <input
+                        type="text"
+                        value={
+                          profileForm.profileSectionTitle ??
+                          'Rekaman Pita Analog, Akar Reggae Pesisir.'
+                        }
+                        onChange={(e) =>
+                          setProfileForm({
+                            ...profileForm,
+                            profileSectionTitle: e.target.value,
+                          })
+                        }
+                        placeholder="Rekaman Pita Analog, Akar Reggae Pesisir."
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#D6CFC2] mb-1">
+                        Subjudul Formasi Panggung
+                      </label>
+                      <input
+                        type="text"
+                        value={
+                          profileForm.profileSectionSubtitle ??
+                          'Instrumen live tanpa backing track digital'
+                        }
+                        onChange={(e) =>
+                          setProfileForm({
+                            ...profileForm,
+                            profileSectionSubtitle: e.target.value,
+                          })
+                        }
+                        placeholder="Instrumen live tanpa backing track digital"
+                        className="w-full min-h-[38px] px-3 text-xs bg-[#090B08] border border-[#2A3024] rounded-lg text-[#F5F2EB]"
+                      />
+                    </div>
                   </div>
 
                   <div>

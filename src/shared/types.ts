@@ -50,6 +50,8 @@ export interface BandProfile {
   kicker: string;
   headline: string;
   subheadline: string;
+  profileSectionTitle?: string;
+  profileSectionSubtitle?: string;
   bio: string;
   studioQuote: string;
   originCity: string;

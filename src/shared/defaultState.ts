@@ -9,6 +9,8 @@ export const DEFAULT_STATE: BandState = {
     headline: 'Harmoni Pesisir, Bas Hangat, dan Denyut Reggae Rasmalas.',
     subheadline:
       'Kolektif roots reggae dan dub analog yang memadukan ritem one-drop Jamaika dengan kisah tropis Nusantara, instrumen tiup langsung, serta rekaman pita reel-to-reel.',
+    profileSectionTitle: 'Rekaman Pita Analog, Akar Reggae Pesisir.',
+    profileSectionSubtitle: 'Instrumen live tanpa backing track digital',
     bio: 'Dibentuk pada tahun 2012, Rasmalas membangun reputasi lewat pertunjukan sound system terbuka dan aransemen brass yang hangat. Setiap lagu direkam secara live-tracking menggunakan konsol analog dan efek spring reverb autentik untuk menjaga napas organik di setiap ketukan.',
     studioQuote:
       'Kami tidak mengejar kesempurnaan steril; kami mengejar getaran ruang yang membuat kaki bergerak sebelum pikiran sempat bertanya.',

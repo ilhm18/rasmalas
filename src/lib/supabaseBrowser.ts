@@ -107,6 +107,8 @@ export async function fetchBandStateFromSupabase(): Promise<BandState> {
         }))
       : DEFAULT_STATE.siteSections;
 
+  const profilSection = hydratedSections.find((s) => s.builtinKey === 'profil');
+
   return {
     profile: {
       name: p.name,
@@ -114,6 +116,14 @@ export async function fetchBandStateFromSupabase(): Promise<BandState> {
       kicker: p.kicker,
       headline: p.headline,
       subheadline: p.subheadline,
+      profileSectionTitle:
+        p.profile_section_title ??
+        profilSection?.title ??
+        DEFAULT_STATE.profile.profileSectionTitle,
+      profileSectionSubtitle:
+        p.profile_section_subtitle ??
+        profilSection?.subtitle ??
+        DEFAULT_STATE.profile.profileSectionSubtitle,
       bio: p.bio,
       studioQuote: p.studio_quote,
       originCity: p.origin_city,
@@ -652,35 +662,62 @@ export async function sbSaveProfileAndMembers(profile: BandProfile): Promise<voi
   const client = getBrowserSupabaseClient();
   if (!client) throw new Error('Koneksi database belum dikonfigurasi.');
 
+  const sectionTitle =
+    profile.profileSectionTitle?.trim() || 'Rekaman Pita Analog, Akar Reggae Pesisir.';
+  const sectionSubtitle =
+    profile.profileSectionSubtitle?.trim() || 'Instrumen live tanpa backing track digital';
+
+  const baseProfilePayload = {
+    id: 'rasmalas',
+    name: profile.name,
+    logo_url: profile.logoUrl ?? null,
+    kicker: profile.kicker,
+    headline: profile.headline,
+    subheadline: profile.subheadline,
+    bio: profile.bio,
+    studio_quote: profile.studioQuote,
+    origin_city: profile.originCity,
+    booking_email: profile.bookingEmail,
+    hero_image: profile.heroImage,
+    studio_image: profile.studioImage,
+    hero_cta_primary: profile.heroCtaPrimary ?? 'Putar Album Terbaru',
+    hero_cta_secondary: profile.heroCtaSecondary ?? 'Lihat Jadwal',
+    hero_card_kicker: profile.heroCardKicker ?? 'Jadwal Panggung Nusantara',
+    hero_card_title:
+      profile.heroCardTitle ?? 'Sesi Panggung Terbuka & 12-Stack Sound System',
+    footer_note: profile.footerNote ?? 'Roots Reggae & Analog Dub',
+    footer_description: profile.footerDescription ?? null,
+    footer_copyright: profile.footerCopyright ?? null,
+    footer_links: profile.footerLinks ?? [],
+    stats: profile.stats,
+    updated_at: new Date().toISOString(),
+  };
+
   const { error: profErr } = await client.from('band_profile').upsert(
     {
-      id: 'rasmalas',
-      name: profile.name,
-      logo_url: profile.logoUrl ?? null,
-      kicker: profile.kicker,
-      headline: profile.headline,
-      subheadline: profile.subheadline,
-      bio: profile.bio,
-      studio_quote: profile.studioQuote,
-      origin_city: profile.originCity,
-      booking_email: profile.bookingEmail,
-      hero_image: profile.heroImage,
-      studio_image: profile.studioImage,
-      hero_cta_primary: profile.heroCtaPrimary ?? 'Putar Album Terbaru',
-      hero_cta_secondary: profile.heroCtaSecondary ?? 'Lihat Jadwal',
-      hero_card_kicker: profile.heroCardKicker ?? 'Jadwal Panggung Nusantara',
-      hero_card_title:
-        profile.heroCardTitle ?? 'Sesi Panggung Terbuka & 12-Stack Sound System',
-      footer_note: profile.footerNote ?? 'Roots Reggae & Analog Dub',
-      footer_description: profile.footerDescription ?? null,
-      footer_copyright: profile.footerCopyright ?? null,
-      footer_links: profile.footerLinks ?? [],
-      stats: profile.stats,
-      updated_at: new Date().toISOString(),
+      ...baseProfilePayload,
+      profile_section_title: sectionTitle,
+      profile_section_subtitle: sectionSubtitle,
     },
     { onConflict: 'id' }
   );
-  if (profErr) throw new Error(profErr.message);
+
+  if (profErr) {
+    // Fallback if optional profile_section_title column has not been added via SQL yet
+    const { error: fallbackErr } = await client
+      .from('band_profile')
+      .upsert(baseProfilePayload, { onConflict: 'id' });
+    if (fallbackErr) throw new Error(fallbackErr.message);
+  }
+
+  // Also synchronize the 'profil' row in site_sections so it always stays in sync
+  await client
+    .from('site_sections')
+    .update({
+      title: sectionTitle,
+      subtitle: sectionSubtitle,
+    })
+    .eq('builtin_key', 'profil');
 
   const { data: existingMembers, error: fetchErr } = await client
     .from('band_members')
