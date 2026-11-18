@@ -75,13 +75,13 @@ export function StudioLoadingScreen() {
 
           {/* Studio Text Hierarchy */}
           <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-[#EAB308] font-semibold">
-            Roots Reggae &amp; Analog Dub
+            Pondok Ranggon, Jakarta Timur
           </p>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#F5F2EB] tracking-tight mt-1.5">
             Rasmalas Official
           </h1>
           <p className="text-xs sm:text-sm text-[#A8A092] mt-2">
-            Memuat profil &amp; menyetel frekuensi piringan hitam...
+            memuat profile, harap tunggu...
           </p>
 
           {/* Animated Rasta Loading Meter */}
@@ -93,7 +93,7 @@ export function StudioLoadingScreen() {
 
       <div className="relative z-10 pb-6 text-center">
         <p className="text-[11px] font-mono text-[#787166]">
-          12-Stack Sound System · Reel-to-Reel Studio Session
+          @rasmalas.official @2026
         </p>
       </div>
     </div>
