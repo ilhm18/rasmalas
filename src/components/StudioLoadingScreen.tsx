@@ -93,7 +93,7 @@ export function StudioLoadingScreen() {
 
       <div className="relative z-10 pb-6 text-center">
         <p className="text-[11px] font-mono text-[#787166]">
-          @rasmalas.official @2026
+          @rasmalas.official
         </p>
       </div>
     </div>

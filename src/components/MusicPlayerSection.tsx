@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   FileText,
   Pause,
@@ -10,11 +10,6 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import {
-  buildSyncedLyrics,
-  findActiveLyricIndex,
-  hasMeaningfulLyrics,
-} from '../shared/syncedLyrics';
 import type { SiteSection, Track } from '../shared/types';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -68,90 +63,11 @@ export function MusicPlayerSection({
   onToggleShuffle,
   onToggleRepeat,
 }: MusicPlayerSectionProps) {
-  const [showLyrics, setShowLyrics] = useState(true);
-  const [autoLyricsMap, setAutoLyricsMap] = useState<Record<string, string>>({});
-  const [transcribingId, setTranscribingId] = useState<string | null>(null);
-  const attemptedTranscribeRef = useRef<Set<string>>(new Set());
-  const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   const active = currentTrack ?? tracks[0] ?? null;
   const effectiveDuration = duration > 0 ? duration : active?.durationSec || 24;
   const progressPct = Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100));
-
-  // Automatically transcribe audio to synced lyrics if track has an audioUrl and no custom lyrics yet
-  useEffect(() => {
-    if (!active) return;
-    if (hasMeaningfulLyrics(active.lyrics) || autoLyricsMap[active.id]) return;
-    if (!active.audioUrl || !active.audioUrl.trim()) return;
-    if (attemptedTranscribeRef.current.has(active.id)) return;
-
-    attemptedTranscribeRef.current.add(active.id);
-    let cancelled = false;
-    setTranscribingId(active.id);
-
-    fetch('/api/tracks/auto-lyrics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        trackId: active.id,
-        title: active.title,
-        audioUrl: active.audioUrl,
-        durationSec: effectiveDuration,
-      }),
-    })
-      .then(async (res) => {
-        if (!res.ok) return null;
-        const data = (await res.json()) as { lyrics?: string };
-        return data.lyrics?.trim() || null;
-      })
-      .then((transcribed) => {
-        if (cancelled || !transcribed) return;
-        setAutoLyricsMap((prev) => ({ ...prev, [active.id]: transcribed }));
-      })
-      .catch(() => {
-        // Fallback synced lyrics are already active
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setTranscribingId((prev) => (prev === active.id ? null : prev));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [active, autoLyricsMap, effectiveDuration]);
-
-  const syncedLines = useMemo(() => {
-    if (!active) return [];
-    const mergedTrack: Track = autoLyricsMap[active.id]
-      ? { ...active, lyrics: autoLyricsMap[active.id] }
-      : active;
-    return buildSyncedLyrics(mergedTrack, effectiveDuration);
-  }, [active, autoLyricsMap, effectiveDuration]);
-
-  const activeLyricIdx = useMemo(
-    () => findActiveLyricIndex(syncedLines, currentTime),
-    [syncedLines, currentTime]
-  );
-
-  // Smoothly auto-scroll the active lyric line into the center of the Spotify-style lyrics box
-  useEffect(() => {
-    if (!showLyrics || activeLyricIdx < 0) return;
-    const container = lyricsContainerRef.current;
-    if (!container) return;
-    const lineEl = container.querySelector<HTMLElement>(
-      `[data-lyric-idx="${activeLyricIdx}"]`
-    );
-    if (!lineEl) return;
-
-    const targetTop =
-      lineEl.offsetTop - container.clientHeight / 2 + lineEl.clientHeight / 2;
-    container.scrollTo({
-      top: Math.max(0, targetTop),
-      behavior: 'smooth',
-    });
-  }, [activeLyricIdx, showLyrics]);
 
   return (
     <section
@@ -344,72 +260,21 @@ export function MusicPlayerSection({
                 </div>
               </div>
 
-              {/* Spotify-Style Automatic Synced Lyrics */}
+              {/* Lyrics Toggle (Manual from Admin Dashboard) */}
               <div className="pt-2 border-t border-[#2A2620]">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowLyrics((prev) => !prev)}
-                    className="inline-flex items-center gap-2 text-xs font-semibold text-[#F5F2EB] hover:text-[#EAB308] cursor-pointer min-h-[36px]"
-                  >
-                    <FileText className="w-4 h-4 text-[#EAB308]" aria-hidden="true" />
-                    <span>{showLyrics ? 'Tutup Lirik Lagu' : 'Lihat Lirik Lagu'}</span>
-                  </button>
-
-                  <span className="text-[11px] font-mono text-[#A8A092]">
-                    {transcribingId === active.id
-                      ? 'Menyinkronkan audio...'
-                      : 'Lirik Sinkronisasi Otomatis'}
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLyrics((prev) => !prev)}
+                  className="inline-flex items-center gap-2 text-xs font-medium text-[#D6CFC2] hover:text-[#EAB308] cursor-pointer min-h-[36px]"
+                >
+                  <FileText className="w-4 h-4 text-[#EAB308]" aria-hidden="true" />
+                  <span>{showLyrics ? 'Tutup Lirik Lagu' : 'Lihat Lirik Lagu'}</span>
+                </button>
 
                 {showLyrics && (
-                  <div className="mt-2.5 rounded-xl border border-[#2A3024] bg-gradient-to-b from-[#151D12]/90 via-[#10140E]/95 to-[#17100E]/90 p-3 sm:p-4 shadow-inner">
-                    <div
-                      ref={lyricsContainerRef}
-                      className="max-h-[220px] overflow-y-auto pr-1 space-y-1.5 scroll-smooth [scrollbar-width:thin]"
-                    >
-                      {syncedLines.map((line) => {
-                        const isCurrent = line.index === activeLyricIdx;
-                        const isPast = line.index < activeLyricIdx;
-                        return (
-                          <button
-                            key={`${active.id}-lyric-${line.index}`}
-                            type="button"
-                            data-lyric-idx={line.index}
-                            onClick={() => onSeek(line.timeSec)}
-                            title={`Lompat ke ${line.timeLabel}`}
-                            className={`w-full text-left px-3 py-2 rounded-lg flex items-baseline gap-3 transition-all duration-300 cursor-pointer ${
-                              isCurrent
-                                ? 'bg-[#EAB308]/15 border-l-2 border-[#EAB308]'
-                                : 'hover:bg-white/5'
-                            }`}
-                          >
-                            <span
-                              className={`text-[11px] font-mono tabular-nums shrink-0 ${
-                                isCurrent ? 'text-[#EAB308] font-semibold' : 'text-[#787166]'
-                              }`}
-                            >
-                              {line.timeLabel}
-                            </span>
-                            <span
-                              className={`leading-relaxed transition-colors duration-300 ${
-                                isCurrent
-                                  ? 'text-sm sm:text-[15px] font-bold text-[#F5F2EB]'
-                                  : isPast
-                                    ? 'text-xs sm:text-sm text-[#D6CFC2]/55'
-                                    : 'text-xs sm:text-sm text-[#A8A092]/75'
-                              }`}
-                            >
-                              {line.text}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-2 pt-2 border-t border-[#2A3024]/60 text-[11px] text-[#A8A092] flex items-center justify-between gap-2">
-                      <span>Klik baris lirik untuk melompat ke bagian lagu</span>
-                      <span className="font-mono text-[#EAB308]">Auto-Sync</span>
+                  <div className="mt-3 pt-3 border-t border-[#2A2620]/70 text-sm">
+                    <p className="whitespace-pre-line text-[#D6CFC2] leading-relaxed">
+                      {active.lyrics?.trim() || 'Lirik lagu belum ditambahkan.'}
                     </p>
                   </div>
                 )}
@@ -503,8 +368,10 @@ export function MusicPlayerSection({
                           </p>
                           <p className="text-xs text-[#A8A092] truncate">
                             {isCurrentlyPlaying
-                              ? 'Sedang diputar · Lirik sinkron aktif'
-                              : 'Lirik otomatis · Audio streaming'}
+                              ? 'Sedang diputar · Audio streaming'
+                              : track.lyrics?.trim()
+                                ? 'Dilengkapi lirik lagu'
+                                : 'Audio streaming'}
                           </p>
                         </div>
                       </div>

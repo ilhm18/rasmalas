@@ -240,6 +240,13 @@ export default function App() {
     [getTrackSource, isMuted, recordTrackPlay, volume]
   );
 
+  const isMutedRef = useRef(isMuted);
+  const volumeRef = useRef(volume);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+    volumeRef.current = volume;
+  }, [isMuted, volume]);
+
   // Instant Autoplay "Rasmalas - Uyee" (or first track) immediately when the web opens
   useEffect(() => {
     if (viewMode !== 'public' || tracks.length === 0) return;
@@ -277,14 +284,16 @@ export default function App() {
       : new URL(src, window.location.origin).href;
     if (audio.src !== resolvedHref) {
       audio.src = src;
+      audio.load();
     }
     audio.autoplay = true;
     audio.preload = 'auto';
-    audio.muted = isMuted;
-    audio.volume = isMuted ? 0 : volume;
+    audio.muted = isMutedRef.current;
+    audio.volume = isMutedRef.current ? 0 : volumeRef.current;
 
     let unlocked = false;
     let countedPlay = false;
+    let playInFlight = false;
 
     const markPlayingOnce = () => {
       setIsPlaying(true);
@@ -294,27 +303,59 @@ export default function App() {
       }
     };
 
-    const INTERACTION_EVENTS = [
+    const UNLOCK_EVENTS = [
       'pointerdown',
-      'pointermove',
-      'mousemove',
       'mousedown',
       'touchstart',
-      'touchmove',
+      'touchend',
       'keydown',
       'click',
       'wheel',
-      'focus',
+      'scroll',
     ] as const;
 
     const removeUnlockListeners = () => {
-      audio.removeEventListener('canplay', onCanPlayAuto);
-      for (const evt of INTERACTION_EVENTS) {
-        window.removeEventListener(evt, handleFirstInteraction, true);
+      audio.removeEventListener('canplay', onReadyToPlay);
+      audio.removeEventListener('loadeddata', onReadyToPlay);
+      for (const evt of UNLOCK_EVENTS) {
+        window.removeEventListener(evt, handleUnlockInteraction, true);
+        document.removeEventListener(evt, handleUnlockInteraction, true);
       }
     };
 
-    function handleFirstInteraction(e: Event) {
+    function tryPlayUnmuted() {
+      const el = audioRef.current;
+      if (!el || unlocked || userChangedTrackRef.current) return;
+
+      if (!el.paused) {
+        unlocked = true;
+        removeUnlockListeners();
+        cleanupAutoplayUnlockRef.current = null;
+        markPlayingOnce();
+        return;
+      }
+
+      if (playInFlight) return;
+      playInFlight = true;
+
+      el.muted = isMutedRef.current;
+      el.volume = isMutedRef.current ? 0 : volumeRef.current;
+
+      el.play()
+        .then(() => {
+          playInFlight = false;
+          unlocked = true;
+          removeUnlockListeners();
+          cleanupAutoplayUnlockRef.current = null;
+          markPlayingOnce();
+        })
+        .catch(() => {
+          playInFlight = false;
+          // Keep unlock listeners active so the very first user gesture plays immediately with sound
+        });
+    }
+
+    function handleUnlockInteraction(e: Event) {
       if (unlocked || userChangedTrackRef.current) {
         removeUnlockListeners();
         return;
@@ -327,79 +368,31 @@ export default function App() {
         removeUnlockListeners();
         return;
       }
-
-      const el = audioRef.current;
-      if (!el) return;
-
-      el.muted = isMuted;
-      el.volume = isMuted ? 0 : volume;
-      el.play()
-        .then(() => {
-          unlocked = true;
-          removeUnlockListeners();
-          cleanupAutoplayUnlockRef.current = null;
-          markPlayingOnce();
-        })
-        .catch(() => {
-          // Keep listeners active until a valid gesture unmutes/plays
-        });
+      tryPlayUnmuted();
     }
 
-    function startImmediateAutoplay() {
-      const el = audioRef.current;
-      if (!el || unlocked || userChangedTrackRef.current) return;
-
-      el.muted = isMuted;
-      el.volume = isMuted ? 0 : volume;
-      el.play()
-        .then(() => {
-          unlocked = true;
-          removeUnlockListeners();
-          cleanupAutoplayUnlockRef.current = null;
-          markPlayingOnce();
-        })
-        .catch(() => {
-          // Fallback: start muted playback immediately so the track plays right away at 0ms,
-          // then unmute automatically on the slightest cursor/touch/key activity
-          el.muted = true;
-          el.play()
-            .then(() => {
-              markPlayingOnce();
-              // Attempt immediate unmute in case browser permits after playback begins
-              setTimeout(() => {
-                if (!userChangedTrackRef.current && audioRef.current) {
-                  try {
-                    audioRef.current.muted = isMuted;
-                    audioRef.current.volume = isMuted ? 0 : volume;
-                  } catch {
-                    // Wait for interaction listener
-                  }
-                }
-              }, 120);
-            })
-            .catch(() => {
-              setIsPlaying(false);
-            });
-
-          cleanupAutoplayUnlockRef.current = removeUnlockListeners;
-          for (const evt of INTERACTION_EVENTS) {
-            window.addEventListener(evt, handleFirstInteraction, {
-              capture: true,
-              passive: true,
-            });
-          }
-        });
-    }
-
-    function onCanPlayAuto() {
-      if (!unlocked && !userChangedTrackRef.current && audioRef.current?.paused) {
-        startImmediateAutoplay();
+    function onReadyToPlay() {
+      if (!unlocked && !userChangedTrackRef.current) {
+        tryPlayUnmuted();
       }
     }
 
-    audio.addEventListener('canplay', onCanPlayAuto);
-    startImmediateAutoplay();
-  }, [viewMode, tracks, getTrackSource, isMuted, volume, recordTrackPlay]);
+    cleanupAutoplayUnlockRef.current = removeUnlockListeners;
+    audio.addEventListener('loadeddata', onReadyToPlay);
+    audio.addEventListener('canplay', onReadyToPlay);
+    for (const evt of UNLOCK_EVENTS) {
+      window.addEventListener(evt, handleUnlockInteraction, {
+        capture: true,
+        passive: true,
+      });
+      document.addEventListener(evt, handleUnlockInteraction, {
+        capture: true,
+        passive: true,
+      });
+    }
+
+    tryPlayUnmuted();
+  }, [viewMode, tracks, getTrackSource, recordTrackPlay]);
 
   useEffect(() => {
     return () => {
@@ -499,6 +492,9 @@ export default function App() {
         setDuration(audio.duration);
       }
     };
+    const onPlay = () => setIsPlaying(true);
+    const onPlaying = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
     const onEnded = () => {
       if (repeatOne) {
         audio.currentTime = 0;
@@ -510,10 +506,16 @@ export default function App() {
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
   }, [repeatOne, handleNext]);
